@@ -1,121 +1,140 @@
-import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Question } from '../types';
+import type { PracticeMode, Question } from '../types';
 import { useSound } from '../hooks/useSound';
 
 interface QuizCardProps {
   question: Question;
-  onAnswer: (isCorrect: boolean, timeSpent: number) => void;
-  onSkip: () => void;
+  mode: PracticeMode;
+  selectedAnswer: string | null;
+  showResult: boolean;
   soundEnabled: boolean;
+  onSelect: (answer: string) => void;
+  onSubmit: () => void;
+  onSkip: () => void;
+  onNext: () => void;
 }
 
-export function QuizCard({ question, onAnswer, onSkip, soundEnabled }: QuizCardProps) {
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [showResult, setShowResult] = useState(false);
-  const [startTime] = useState(Date.now());
+export function QuizCard({
+  question,
+  mode,
+  selectedAnswer,
+  showResult,
+  soundEnabled,
+  onSelect,
+  onSubmit,
+  onSkip,
+  onNext,
+}: QuizCardProps) {
   const { playCorrect, playWrong } = useSound(soundEnabled);
 
-  const handleSelect = useCallback((answer: string) => {
-    if (showResult) return;
-
-    setSelectedAnswer(answer);
-    setShowResult(true);
-
-    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
-    const isCorrect = answer === question.correctAnswer;
-
-    if (isCorrect) {
-      playCorrect();
-    } else {
-      playWrong();
+  const getOptionStyle = (answer: string) => {
+    if (showResult) {
+      if (answer === question.correctAnswer) {
+        return 'border-green-500 bg-green-100 text-green-900';
+      }
+      if (answer === selectedAnswer) {
+        return 'border-red-500 bg-red-100 text-red-900';
+      }
+      return 'border-gray-200 bg-gray-50 text-gray-500 opacity-65';
     }
 
-    onAnswer(isCorrect, timeSpent);
-  }, [showResult, startTime, question.correctAnswer, playCorrect, playWrong, onAnswer]);
-
-  const getOptionStyle = (option: string) => {
-    if (!showResult) return 'bg-white hover:bg-blue-50 border-gray-200';
-
-    if (option === question.correctAnswer) {
-      return 'bg-green-100 border-green-500 text-green-800';
+    if (answer === selectedAnswer) {
+      return 'border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-100';
     }
 
-    if (option === selectedAnswer && option !== question.correctAnswer) {
-      return 'bg-red-100 border-red-500 text-red-800';
-    }
+    return 'border-gray-200 bg-white text-gray-900 hover:border-blue-300 hover:bg-blue-50';
+  };
 
-    return 'bg-gray-50 border-gray-200 opacity-50';
+  const handleSubmit = () => {
+    if (!selectedAnswer || showResult) return;
+    if (selectedAnswer === question.correctAnswer) playCorrect();
+    else playWrong();
+    onSubmit();
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="mx-auto w-full max-w-2xl">
       <div className="mb-6">
-        <span className="inline-block px-3 py-1 text-xs font-medium text-blue-600 bg-blue-100 rounded-full mb-3">
+        <span className="mb-3 inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
           {question.topic}
         </span>
-        <h2 className="text-lg font-medium leading-relaxed text-gray-900">
+        <h2 className="whitespace-pre-wrap text-lg font-medium leading-relaxed text-gray-900">
           {question.question}
         </h2>
       </div>
 
-      <div className="space-y-3 mb-6">
-        {question.options.map((option, index) => (
-          <motion.button
-            key={index}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => handleSelect(option.charAt(0))}
-            disabled={showResult}
-            className={`w-full p-4 text-left rounded-xl border-2 transition-all duration-200 ${getOptionStyle(option.charAt(0))}`}
-          >
-            <span className="font-medium mr-2">{option.charAt(0)}.</span>
-            {option.slice(3)}
-          </motion.button>
-        ))}
+      <div className="mb-6 space-y-3">
+        {question.options.map((option, index) => {
+          const answer = option.charAt(0);
+          return (
+            <motion.button
+              type="button"
+              key={`${question.id}-${index}`}
+              whileTap={{ scale: 0.99 }}
+              onClick={() => onSelect(answer)}
+              disabled={showResult}
+              className={`w-full rounded-xl border-2 p-4 text-left transition-all duration-200 ${getOptionStyle(answer)}`}
+            >
+              <span className="mr-2 font-bold">{answer}.</span>
+              {option.slice(3)}
+            </motion.button>
+          );
+        })}
       </div>
 
       <AnimatePresence>
         {showResult && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`p-4 rounded-xl mb-6 ${
+            exit={{ opacity: 0, y: -12 }}
+            className={`mb-6 rounded-xl border p-4 ${
               selectedAnswer === question.correctAnswer
-                ? 'bg-green-50 border border-green-200'
-                : 'bg-red-50 border border-red-200'
+                ? 'border-green-200 bg-green-50'
+                : 'border-red-200 bg-red-50'
             }`}
           >
-            <p className="font-medium mb-2">
-              {selectedAnswer === question.correctAnswer ? '✅ 正确！' : '❌ 错误'}
+            <p className="mb-2 font-semibold text-gray-900">
+              {selectedAnswer === question.correctAnswer ? '✅ 回答正确' : '❌ 回答错误'}
             </p>
-            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
               {question.explanation}
             </p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="flex justify-center gap-3">
-        {!showResult ? (
-          <button
-            onClick={onSkip}
-            className="px-6 py-2 text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            ⏭ 跳过
-          </button>
-        ) : (
-          <button
-            onClick={() => {
-              setSelectedAnswer(null);
-              setShowResult(false);
-            }}
-            className="px-8 py-3 bg-blue-500 text-white rounded-full font-medium hover:bg-blue-600 transition-colors"
-          >
-            下一题 →
-          </button>
-        )}
-      </div>
+      {mode === 'study' && (
+        <div className="sticky bottom-3 z-10 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+          {!showResult ? (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onSkip}
+                className="shrink-0 px-3 py-3 text-sm font-medium text-gray-500 hover:text-gray-800"
+              >
+                暂时跳过
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!selectedAnswer}
+                className="flex-1 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                提交答案
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onNext}
+              className="w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              下一题 →
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

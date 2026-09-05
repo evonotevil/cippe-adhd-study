@@ -33,7 +33,7 @@ export function useSound(enabled: boolean = true) {
           oscillator.start();
           oscillator.stop(audioContext.currentTime + 0.05);
         }
-      } catch (e) {
+      } catch {
         // Audio not supported, silently fail
       }
     }

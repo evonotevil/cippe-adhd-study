@@ -20,9 +20,12 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
 
   const handleExport = () => {
     const data = {
+      version: 2,
       progress: JSON.parse(localStorage.getItem('cippe-progress') || '[]'),
       stats: JSON.parse(localStorage.getItem('cippe-stats') || '{}'),
       settings: localSettings,
+      activeSession: JSON.parse(localStorage.getItem('cippe-active-session') || 'null'),
+      randomSettings: JSON.parse(localStorage.getItem('cippe-random-settings') || 'null'),
       lastSync: new Date().toISOString(),
     };
     exportToFile(data);
@@ -37,6 +40,12 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
       if (data.progress) localStorage.setItem('cippe-progress', JSON.stringify(data.progress));
       if (data.stats) localStorage.setItem('cippe-stats', JSON.stringify(data.stats));
       if (data.settings) onUpdate(data.settings);
+      if (data.activeSession !== undefined) {
+        localStorage.setItem('cippe-active-session', JSON.stringify(data.activeSession));
+      }
+      if (data.randomSettings) {
+        localStorage.setItem('cippe-random-settings', JSON.stringify(data.randomSettings));
+      }
       window.location.reload();
     }
   };

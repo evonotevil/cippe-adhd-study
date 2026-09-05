@@ -4,9 +4,12 @@ const BIN_ID = 'cippe-study-data';
 const API_KEY = '$2a$10$demo_key_for_cippe_sync'; // 用户需要替换为自己的 API key
 
 interface SyncData {
+  version?: number;
   progress: any[];
   stats: any;
   settings: any;
+  activeSession?: any;
+  randomSettings?: any;
   lastSync: string;
 }
 
