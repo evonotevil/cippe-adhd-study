@@ -4,9 +4,8 @@ import { QuizCard } from './components/QuizCard';
 import { Timer } from './components/Timer';
 import { Achievements } from './components/Achievements';
 import { Settings } from './components/Settings';
-import { useProgress } from './hooks/useProgress';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import type { StudySettings } from './types';
+import type { StudySettings, UserProgress, UserStats } from './types';
 import { QUESTIONS } from './data/questions';
 import { shuffleArray } from './utils/helpers';
 
@@ -18,13 +17,23 @@ const DEFAULT_SETTINGS: StudySettings = {
   fontSize: 'medium',
 };
 
+const DEFAULT_STATS: UserStats = {
+  totalAnswered: 0,
+  correctCount: 0,
+  streakDays: 0,
+  lastStudyDate: '',
+  tomatoSessions: 0,
+  achievements: [],
+};
+
 type View = 'quiz' | 'timer' | 'achievements' | 'settings';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('quiz');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [settings, setSettings] = useLocalStorage<StudySettings>('cippe-settings', DEFAULT_SETTINGS);
-  const { progress, stats, recordAnswer } = useProgress();
+  const [progress, setProgress] = useLocalStorage<UserProgress[]>('cippe-progress', []);
+  const [stats, setStats] = useLocalStorage<UserStats>('cippe-stats', DEFAULT_STATS);
 
   const questions = useMemo(() => shuffleArray(QUESTIONS), []);
   const currentQuestion = questions[currentQuestionIndex];
@@ -36,9 +45,20 @@ function App() {
 
   const handleAnswer = useCallback((isCorrect: boolean, timeSpent: number) => {
     if (currentQuestion) {
-      recordAnswer(currentQuestion.id, isCorrect, timeSpent);
+      const newProgress: UserProgress = {
+        questionId: currentQuestion.id,
+        isCorrect,
+        timestamp: new Date().toISOString(),
+        timeSpent,
+      };
+      setProgress(prev => [...prev, newProgress]);
+      setStats(prev => ({
+        ...prev,
+        totalAnswered: prev.totalAnswered + 1,
+        correctCount: prev.correctCount + (isCorrect ? 1 : 0),
+      }));
     }
-  }, [currentQuestion, recordAnswer]);
+  }, [currentQuestion, setProgress, setStats]);
 
   const handleNext = useCallback(() => {
     setCurrentQuestionIndex(prev => (prev + 1) % questions.length);
