@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 
 interface PageTransitionProps {
   children: ReactNode;
@@ -12,7 +12,7 @@ export function PageTransition({ children, direction = 1, className = '' }: Page
   const distance = reduceMotion ? 0 : direction * 14;
 
   return (
-    <motion.div
+    <m.div
       className={className}
       initial={{ opacity: 0, x: distance }}
       animate={{ opacity: 1, x: 0 }}
@@ -20,6 +20,6 @@ export function PageTransition({ children, direction = 1, className = '' }: Page
       transition={{ duration: reduceMotion ? 0.08 : 0.2, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }

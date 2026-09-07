@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --font-app: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-app: ui-rounded, "SF Pro Rounded", "PingFang SC", "Microsoft YaHei UI", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 
   --ui-bg: oklch(0.982 0.008 145);
   --ui-surface: oklch(1 0 0);
@@ -38,7 +38,7 @@
   --ui-danger-ink: oklch(0.31 0.13 23);
 
   --ui-shadow-color: oklch(0.28 0.03 250 / 0.1);
-  --ui-focus: oklch(0.62 0.18 250 / 0.42);
+  --ui-focus: oklch(0.45 0.17 250);
 }
 
 [data-theme="dark"] {
@@ -78,7 +78,7 @@
   --ui-danger-ink: oklch(0.94 0.035 24);
 
   --ui-shadow-color: oklch(0.05 0.01 145 / 0.35);
-  --ui-focus: oklch(0.75 0.16 245 / 0.52);
+  --ui-focus: oklch(0.78 0.14 245);
 }
 
 [data-theme="eye-care"] {
@@ -97,6 +97,7 @@
   --ui-warning-soft: oklch(0.91 0.065 78);
   --ui-danger-soft: oklch(0.91 0.05 24);
   --ui-shadow-color: oklch(0.34 0.045 105 / 0.12);
+  --ui-focus: oklch(0.43 0.14 238);
 }
 
 @theme inline {
@@ -162,6 +163,7 @@ button {
 h1,
 h2,
 h3 {
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 
@@ -309,6 +311,75 @@ p {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Type roles stay paired with usable line-height at every user-selected scale. */
+[data-font-size="small"] {
+  --type-micro: 0.625rem;
+  --type-caption: 0.6875rem;
+  --type-body-sm: 0.8125rem;
+  --type-body: 0.9375rem;
+  --type-lead: 1.0625rem;
+  --type-card-title: 1.125rem;
+  --type-section: 1.375rem;
+  --type-page-title: 1.625rem;
+  --type-display: 2rem;
+  --type-timer: 2.75rem;
+}
+
+[data-font-size="medium"] {
+  --type-micro: 0.6875rem;
+  --type-caption: 0.75rem;
+  --type-body-sm: 0.875rem;
+  --type-body: 1rem;
+  --type-lead: 1.125rem;
+  --type-card-title: 1.25rem;
+  --type-section: 1.5rem;
+  --type-page-title: 1.875rem;
+  --type-display: 2.25rem;
+  --type-timer: 3rem;
+}
+
+[data-font-size="large"] {
+  --type-micro: 0.875rem;
+  --type-caption: 0.9375rem;
+  --type-body-sm: 1rem;
+  --type-body: 1.125rem;
+  --type-lead: 1.25rem;
+  --type-card-title: 1.375rem;
+  --type-section: 1.75rem;
+  --type-page-title: 2.125rem;
+  --type-display: 2.5rem;
+  --type-timer: 3.25rem;
+}
+
+[data-font-size] {
+  font-size: var(--type-body);
+  line-height: 1.55;
+}
+
+[data-font-size] .text-\[11px\] { font-size: var(--type-micro); line-height: 1.4; }
+[data-font-size] .text-xs { font-size: var(--type-caption); line-height: 1.45; }
+[data-font-size] .text-sm { font-size: var(--type-body-sm); line-height: 1.55; }
+[data-font-size] .text-base { font-size: var(--type-body); line-height: 1.55; }
+[data-font-size] .text-lg { font-size: var(--type-lead); line-height: 1.45; }
+[data-font-size] .text-xl { font-size: var(--type-card-title); line-height: 1.35; }
+[data-font-size] .text-2xl { font-size: var(--type-section); line-height: 1.25; }
+[data-font-size] .text-3xl { font-size: var(--type-page-title); line-height: 1.18; }
+[data-font-size] .text-4xl { font-size: var(--type-display); line-height: 1.12; }
+[data-font-size] .text-5xl { font-size: var(--type-timer); line-height: 1.05; }
+[data-font-size] .pressable--sm { font-size: var(--type-body-sm); }
+[data-font-size] .pressable--md { font-size: calc(var(--type-body-sm) + 0.075rem); }
+[data-font-size] .pressable--lg { font-size: var(--type-body); }
+
+@media (min-width: 40rem) {
+  [data-font-size] .sm\:text-sm { font-size: var(--type-body-sm); line-height: 1.55; }
+  [data-font-size] .sm\:text-xl { font-size: var(--type-card-title); line-height: 1.35; }
+}
+
+* {
+  scrollbar-color: var(--ui-line-strong) var(--ui-surface-soft);
+  caret-color: var(--ui-brand-strong);
 }
 
 @media (prefers-reduced-motion: reduce) {

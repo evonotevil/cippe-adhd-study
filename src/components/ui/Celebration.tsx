@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 
 interface CelebrationProps {
   tone?: 'brand' | 'warning' | 'info';
@@ -33,7 +33,7 @@ export function Celebration({ tone = 'brand', compact = false }: CelebrationProp
       className={`pointer-events-none absolute left-1/2 top-1/2 z-0 ${compact ? 'h-20 w-20' : 'h-28 w-28'} -translate-x-1/2 -translate-y-1/2`}
     >
       {particles.map((particle, index) => (
-        <motion.span
+        <m.span
           key={`${particle.x}-${particle.y}`}
           className={`absolute left-1/2 top-1/2 block h-2.5 w-1.5 rounded-full ${toneClass[index % 3 === 0 ? tone : index % 3 === 1 ? 'warning' : 'info']}`}
           initial={{ x: 0, y: 0, rotate: 0, opacity: 0, scale: 0.4 }}
@@ -72,7 +72,7 @@ export function ScoreRing({ value, label = '正确率' }: ScoreRingProps) {
     <div className="relative mx-auto h-32 w-32" role="img" aria-label={`${label} ${safeValue}%`}>
       <svg viewBox="0 0 108 108" className="h-full w-full -rotate-90" aria-hidden="true">
         <circle cx="54" cy="54" r="46" fill="none" stroke="var(--ui-surface-soft)" strokeWidth="10" />
-        <motion.circle
+        <m.circle
           cx="54"
           cy="54"
           r="46"

@@ -1,6 +1,13 @@
 import { useRef, useState } from 'react';
-import type { StudySettings } from '../types';
-import { useCloudSync } from '../hooks/useCloudSync';
+import type {
+  PracticeSession,
+  RandomPracticeSettings,
+  StudySettings,
+  UserProgress,
+  UserStats,
+} from '../types';
+import { useDataTransfer } from '../hooks/useDataTransfer';
+import { QUESTION_COUNT } from '../data/questionCatalog';
 import { useSound } from '../hooks/useSound';
 import { Icon, type IconName } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
@@ -16,11 +23,125 @@ const themeOptions: Array<{ value: StudySettings['theme']; label: string; icon: 
   { value: 'dark', label: '深色', icon: 'moon' },
 ];
 
+interface ImportData {
+  progress: UserProgress[];
+  stats: UserStats;
+  settings: StudySettings;
+  activeSession?: PracticeSession | null;
+  randomSettings?: RandomPracticeSettings | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number'
+    && Number.isInteger(value)
+    && value >= min
+    && value <= max;
+}
+
+function isValidDate(value: unknown, allowEmpty = false): value is string {
+  return typeof value === 'string'
+    && ((allowEmpty && value === '') || !Number.isNaN(Date.parse(value)));
+}
+
+function isRandomSettings(value: unknown): value is RandomPracticeSettings {
+  return isRecord(value)
+    && isIntegerInRange(value.count, 1, QUESTION_COUNT)
+    && (value.topic === null || typeof value.topic === 'string')
+    && ['study', 'exam'].includes(String(value.mode));
+}
+
+function isPracticeSession(value: unknown): value is PracticeSession {
+  if (!isRecord(value)) return false;
+
+  const validItems = Array.isArray(value.items) && value.items.every((item) =>
+    isRecord(item)
+    && typeof item.key === 'string'
+    && isIntegerInRange(item.questionId, 1, QUESTION_COUNT)
+    && isIntegerInRange(item.skippedCount, 0, Number.MAX_SAFE_INTEGER)
+    && (item.selectedAnswer === undefined || ['A', 'B', 'C', 'D'].includes(String(item.selectedAnswer)))
+    && (item.submitted === undefined || typeof item.submitted === 'boolean')
+    && (item.flagged === undefined || typeof item.flagged === 'boolean'));
+  const validAttempts = Array.isArray(value.attempts) && value.attempts.every((attempt) =>
+    isRecord(attempt)
+    && typeof attempt.itemKey === 'string'
+    && isIntegerInRange(attempt.questionId, 1, QUESTION_COUNT)
+    && ['A', 'B', 'C', 'D'].includes(String(attempt.answer))
+    && typeof attempt.isCorrect === 'boolean'
+    && isIntegerInRange(attempt.timeSpent, 0, Number.MAX_SAFE_INTEGER)
+    && isValidDate(attempt.timestamp));
+  const itemCount = Array.isArray(value.items) ? value.items.length : 0;
+
+  return typeof value.id === 'string'
+    && ['all', 'mistakes', 'topic', 'random'].includes(String(value.kind))
+    && ['study', 'exam'].includes(String(value.mode))
+    && ['new', 'reinforce'].includes(String(value.phase))
+    && (value.topic === null || typeof value.topic === 'string')
+    && (value.requestedCount === null || isIntegerInRange(value.requestedCount, 1, QUESTION_COUNT))
+    && isIntegerInRange(value.currentIndex, 0, Math.max(0, itemCount - 1))
+    && isIntegerInRange(value.elapsedSeconds, 0, Number.MAX_SAFE_INTEGER)
+    && isIntegerInRange(value.round, 0, Number.MAX_SAFE_INTEGER)
+    && isValidDate(value.createdAt)
+    && validItems
+    && validAttempts;
+}
+
+function isImportData(value: unknown): value is ImportData {
+  if (!isRecord(value) || !Array.isArray(value.progress) || !isRecord(value.stats) || !isRecord(value.settings)) {
+    return false;
+  }
+
+  const validProgress = value.progress.every((item) =>
+    isRecord(item)
+    && isIntegerInRange(item.questionId, 1, QUESTION_COUNT)
+    && typeof item.isCorrect === 'boolean'
+    && isValidDate(item.timestamp)
+    && isIntegerInRange(item.timeSpent, 0, Number.MAX_SAFE_INTEGER));
+  const validStats = isIntegerInRange(value.stats.totalAnswered, 0, Number.MAX_SAFE_INTEGER)
+    && isIntegerInRange(value.stats.correctCount, 0, value.stats.totalAnswered)
+    && isIntegerInRange(value.stats.streakDays, 0, Number.MAX_SAFE_INTEGER)
+    && isValidDate(value.stats.lastStudyDate, true)
+    && isIntegerInRange(value.stats.tomatoSessions, 0, Number.MAX_SAFE_INTEGER)
+    && Array.isArray(value.stats.achievements)
+    && value.stats.achievements.every((item) => typeof item === 'string');
+  const validSettings = isIntegerInRange(value.settings.tomatoDuration, 5, 60)
+    && value.settings.tomatoDuration % 5 === 0
+    && isIntegerInRange(value.settings.breakDuration, 1, 30)
+    && typeof value.settings.soundEnabled === 'boolean'
+    && ['light', 'dark', 'eye-care'].includes(String(value.settings.theme))
+    && ['small', 'medium', 'large'].includes(String(value.settings.fontSize));
+  const validActiveSession = value.activeSession === undefined
+    || value.activeSession === null
+    || isPracticeSession(value.activeSession);
+  const validRandomSettings = value.randomSettings === undefined
+    || value.randomSettings === null
+    || isRandomSettings(value.randomSettings);
+
+  return validProgress && validStats && validSettings && validActiveSession && validRandomSettings;
+}
+
+function replaceLocalData(entries: Array<[string, unknown]>): void {
+  const previousValues = entries.map(([key]) => [key, localStorage.getItem(key)] as const);
+  try {
+    entries.forEach(([key, value]) => localStorage.setItem(key, JSON.stringify(value)));
+  } catch (error) {
+    previousValues.forEach(([key, value]) => {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    });
+    throw error;
+  }
+}
+
 export function Settings({ settings, onUpdate }: SettingsProps) {
   const [localSettings, setLocalSettings] = useState(settings);
-  const { syncStatus, lastSyncTime, exportToFile, importFromFile } = useCloudSync();
+  const { exportToFile, importFromFile } = useDataTransfer();
   const { playCorrect } = useSound(localSettings.soundEnabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const handleChange = <K extends keyof StudySettings>(key: K, value: StudySettings[K]) => {
     const updated = { ...localSettings, [key]: value };
@@ -45,18 +166,32 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const data = await importFromFile(file);
-    if (data) {
-      if (data.progress) localStorage.setItem('cippe-progress', JSON.stringify(data.progress));
-      if (data.stats) localStorage.setItem('cippe-stats', JSON.stringify(data.stats));
-      if (data.settings) onUpdate(data.settings);
+    setImportMessage(null);
+    try {
+      const data: unknown = await importFromFile(file);
+      if (!isImportData(data)) {
+        setImportMessage('文件内容不完整或格式不受支持。请重新选择由本应用导出的 JSON 备份。');
+        return;
+      }
+
+      const entries: Array<[string, unknown]> = [
+        ['cippe-progress', data.progress],
+        ['cippe-stats', data.stats],
+        ['cippe-settings', data.settings],
+      ];
       if (data.activeSession !== undefined) {
-        localStorage.setItem('cippe-active-session', JSON.stringify(data.activeSession));
+        entries.push(['cippe-active-session', data.activeSession]);
       }
-      if (data.randomSettings) {
-        localStorage.setItem('cippe-random-settings', JSON.stringify(data.randomSettings));
+      if (data.randomSettings !== undefined) {
+        entries.push(['cippe-random-settings', data.randomSettings]);
       }
+      replaceLocalData(entries);
+      onUpdate(data.settings);
       window.location.reload();
+    } catch {
+      setImportMessage('导入失败，现有学习数据没有被替换。请检查文件后重试。');
+    } finally {
+      event.target.value = '';
     }
   };
 
@@ -81,7 +216,7 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
             step="5"
             value={localSettings.tomatoDuration}
             onChange={(event) => handleChange('tomatoDuration', Number(event.target.value))}
-            className="mt-4 h-2 w-full cursor-pointer accent-[var(--ui-danger)]"
+            className="mt-1 h-11 w-full cursor-pointer accent-[var(--ui-danger)]"
           />
         </label>
 
@@ -97,7 +232,7 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
             step="1"
             value={localSettings.breakDuration}
             onChange={(event) => handleChange('breakDuration', Number(event.target.value))}
-            className="mt-4 h-2 w-full cursor-pointer accent-[var(--ui-brand-strong)]"
+            className="mt-1 h-11 w-full cursor-pointer accent-[var(--ui-brand-strong)]"
           />
         </label>
       </section>
@@ -133,15 +268,15 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
               role="switch"
               aria-checked={localSettings.soundEnabled}
               onClick={() => handleChange('soundEnabled', !localSettings.soundEnabled)}
-              className={`relative h-8 w-14 shrink-0 rounded-full border-2 transition-colors ${
+              className={`relative h-11 w-16 shrink-0 rounded-full border-2 transition-colors ${
                 localSettings.soundEnabled
                   ? 'border-brand-shadow bg-brand'
                   : 'border-line-strong bg-surface-soft'
               }`}
             >
               <span
-                className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-surface shadow-sm transition-transform ${
-                  localSettings.soundEnabled ? 'translate-x-[28px]' : 'translate-x-[4px]'
+                className={`absolute left-1 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full bg-surface shadow-sm transition-transform ${
+                  localSettings.soundEnabled ? 'translate-x-[28px]' : 'translate-x-0'
                 }`}
               />
               <span className="sr-only">{localSettings.soundEnabled ? '关闭音效' : '开启音效'}</span>
@@ -191,8 +326,9 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
       <section className="space-y-4" aria-labelledby="data-settings">
         <div>
           <h2 id="data-settings" className="text-lg font-black text-ink">学习数据</h2>
-          <p className="mt-1 text-sm font-semibold leading-relaxed text-muted">
-            导出文件包含学习进度、错题状态、设置和未完成练习，可在另一台设备恢复。
+          <p className="mt-1 max-w-[70ch] text-sm font-semibold leading-relaxed text-muted">
+            数据优先保存在当前设备。导出文件包含学习进度、错题状态、设置和未完成练习。
+            导入会替换当前设备上的这些数据。
           </p>
         </div>
 
@@ -225,10 +361,7 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
         </div>
 
         <div aria-live="polite" className="text-center text-sm font-bold">
-          {lastSyncTime && <p className="text-muted">上次同步：{lastSyncTime}</p>}
-          {syncStatus === 'syncing' && <p className="text-info">正在读取数据…</p>}
-          {syncStatus === 'success' && <p className="text-brand-strong">数据已处理</p>}
-          {syncStatus === 'error' && <p className="text-danger">导入失败，请检查文件后重试</p>}
+          {importMessage && <p className="text-danger">{importMessage}</p>}
         </div>
       </section>
     </div>

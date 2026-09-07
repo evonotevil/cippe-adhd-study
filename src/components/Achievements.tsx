@@ -114,7 +114,7 @@ export function Achievements({ stats }: AchievementsProps) {
               </div>
               <h2 className="mt-4 text-sm font-black text-ink">{achievement.title}</h2>
               <p className="mt-1 text-xs font-semibold leading-relaxed text-muted">{achievement.description}</p>
-              <p className={`mt-3 text-[11px] font-extrabold ${isUnlocked ? 'text-brand-strong' : 'text-faint'}`}>
+              <p className={`mt-3 text-[11px] font-extrabold ${isUnlocked ? 'text-brand-strong' : 'text-muted'}`}>
                 {isUnlocked ? '已解锁' : '继续学习'}
               </p>
             </article>

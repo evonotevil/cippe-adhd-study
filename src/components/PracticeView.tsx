@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PracticeAttempt, PracticeItem, PracticeSession, Question } from '../types';
 import { getSessionTitle } from '../domain/practice';
@@ -44,6 +44,8 @@ export function PracticeView({
   const reduceMotion = useReducedMotion();
   const [showExamReview, setShowExamReview] = useState(false);
   const [questionDirection, setQuestionDirection] = useState<-1 | 1>(1);
+  const [elapsedSeconds, setElapsedSeconds] = useState(session.elapsedSeconds);
+  const elapsedSecondsRef = useRef(session.elapsedSeconds);
   const questionStartedAt = useRef<number | null>(null);
   const currentItem = session.items[session.currentIndex];
   const questionMap = useMemo(
@@ -53,15 +55,33 @@ export function PracticeView({
   const currentQuestion = currentItem ? questionMap.get(currentItem.questionId) : undefined;
 
   useEffect(() => {
+    const startedAt = Date.now() - elapsedSecondsRef.current * 1000;
     const timer = window.setInterval(() => {
-      updateSession((current) => ({
-        ...current,
-        elapsedSeconds: current.elapsedSeconds + 1,
-      }));
+      const nextElapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      elapsedSecondsRef.current = nextElapsed;
+      setElapsedSeconds(nextElapsed);
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [updateSession]);
+  }, [session.id]);
+
+  useEffect(() => {
+    const persistElapsed = () => {
+      updateSession((current) => ({
+        ...current,
+        elapsedSeconds: elapsedSecondsRef.current,
+      }));
+    };
+    const checkpoint = window.setInterval(persistElapsed, 15_000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistElapsed();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearInterval(checkpoint);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [session.id, updateSession]);
 
   useEffect(() => {
     questionStartedAt.current = Date.now();
@@ -72,6 +92,7 @@ export function PracticeView({
     if (!currentItem) return;
     updateSession((current) => ({
       ...current,
+      elapsedSeconds: elapsedSecondsRef.current,
       items: current.items.map((item) =>
         item.key === currentItem.key ? { ...item, ...changes } : item,
       ),
@@ -100,6 +121,7 @@ export function PracticeView({
     onRecordAnswer(currentQuestion.id, isCorrect, timeSpent);
     updateSession((current) => ({
       ...current,
+      elapsedSeconds: elapsedSecondsRef.current,
       items: current.items.map((item) =>
         item.key === currentItem.key ? { ...item, submitted: true } : item,
       ),
@@ -109,7 +131,11 @@ export function PracticeView({
 
   const moveToIndex = (index: number) => {
     setQuestionDirection(index >= session.currentIndex ? 1 : -1);
-    updateSession((current) => ({ ...current, currentIndex: index }));
+    updateSession((current) => ({
+      ...current,
+      currentIndex: index,
+      elapsedSeconds: elapsedSecondsRef.current,
+    }));
   };
 
   const handleNext = () => {
@@ -119,9 +145,9 @@ export function PracticeView({
     }
 
     if (session.kind === 'all' || session.kind === 'topic') {
-      onBoundary(session);
+      onBoundary({ ...session, elapsedSeconds });
     } else {
-      onFinish(session);
+      onFinish({ ...session, elapsedSeconds });
     }
   };
 
@@ -138,6 +164,7 @@ export function PracticeView({
         ...current,
         items,
         currentIndex: Math.min(index, items.length - 1),
+        elapsedSeconds: elapsedSecondsRef.current,
       };
     });
   };
@@ -154,8 +181,16 @@ export function PracticeView({
     }
 
     if (window.confirm('结束本次练习并查看结果吗？')) {
-      onFinish(session);
+      onFinish({ ...session, elapsedSeconds });
     }
+  };
+
+  const handlePause = () => {
+    updateSession((current) => ({
+      ...current,
+      elapsedSeconds: elapsedSecondsRef.current,
+    }));
+    onPause();
   };
 
   const handleExamSubmit = () => {
@@ -169,7 +204,7 @@ export function PracticeView({
     }
 
     const averageTime = answeredItems.length > 0
-      ? Math.max(1, Math.round(session.elapsedSeconds / answeredItems.length))
+      ? Math.max(1, Math.round(elapsedSeconds / answeredItems.length))
       : 0;
     const timestamp = Date.now();
     const attempts: PracticeAttempt[] = answeredItems.map((item, index) => {
@@ -183,7 +218,7 @@ export function PracticeView({
         timestamp: new Date(timestamp + index).toISOString(),
       };
     });
-    const finalSession = { ...session, attempts };
+    const finalSession = { ...session, attempts, elapsedSeconds };
     onSubmitExam(
       finalSession,
       attempts.map(({ questionId, isCorrect, timeSpent }) => ({
@@ -233,7 +268,7 @@ export function PracticeView({
           <p className="text-sm font-extrabold text-info">考试模式</p>
           <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">交卷前检查</h1>
           <p className="mt-2 text-sm font-semibold text-muted">
-            已答 {answeredCount}/{session.items.length} · 已标记 {flaggedCount} · 用时 {formatTime(session.elapsedSeconds)}
+            已答 {answeredCount}/{session.items.length} · 已标记 {flaggedCount} · 用时 {formatTime(elapsedSeconds)}
           </p>
         </header>
 
@@ -284,7 +319,7 @@ export function PracticeView({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={onPause}
+              onClick={handlePause}
               aria-label="保存并返回首页"
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface-soft hover:text-ink"
             >
@@ -315,7 +350,7 @@ export function PracticeView({
               <span aria-hidden="true">·</span>
               <span className="flex items-center gap-1">
                 <Icon name="clock" size={14} />
-                {formatTime(session.elapsedSeconds)}
+                {formatTime(elapsedSeconds)}
               </span>
             </span>
           </div>
@@ -323,7 +358,7 @@ export function PracticeView({
       </header>
 
       <AnimatePresence mode="wait" initial={false} custom={questionDirection}>
-        <motion.div
+        <m.div
           key={currentItem.key}
           custom={questionDirection}
           variants={{
@@ -348,7 +383,7 @@ export function PracticeView({
             onSkip={handleSkip}
             onNext={handleNext}
           />
-        </motion.div>
+        </m.div>
       </AnimatePresence>
 
       {session.mode === 'exam' && (

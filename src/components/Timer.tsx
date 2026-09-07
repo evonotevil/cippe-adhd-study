@@ -1,4 +1,5 @@
-import { motion, useReducedMotion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
+import { m, useReducedMotion } from 'framer-motion';
 import { useTimer } from '../hooks/useTimer';
 import { formatTime } from '../utils/helpers';
 import { Icon } from './ui/Icons';
@@ -7,13 +8,31 @@ import { Pressable } from './ui/Pressable';
 interface TimerProps {
   duration?: number;
   breakDuration?: number;
+  onFocusComplete?: () => void;
 }
 
-export function Timer({ duration = 15, breakDuration = 5 }: TimerProps) {
+export function Timer({ duration = 15, breakDuration = 5, onFocusComplete }: TimerProps) {
   const reduceMotion = useReducedMotion();
-  const { timeLeft, isRunning, isBreak, progress, start, pause, reset } = useTimer(duration, breakDuration);
+  const handledCompletionRef = useRef(0);
+  const {
+    timeLeft,
+    isRunning,
+    isBreak,
+    progress,
+    completionSequence,
+    start,
+    pause,
+    reset,
+    claimFocusCompletion,
+  } = useTimer(duration, breakDuration);
   const circumference = 2 * Math.PI * 44;
   const dashOffset = circumference * (1 - Math.min(1, Math.max(0, progress)));
+
+  useEffect(() => {
+    if (completionSequence <= handledCompletionRef.current) return;
+    handledCompletionRef.current = completionSequence;
+    if (onFocusComplete && claimFocusCompletion()) onFocusComplete();
+  }, [claimFocusCompletion, completionSequence, onFocusComplete]);
 
   return (
     <div className="mx-auto max-w-xl space-y-7 text-center">
@@ -33,7 +52,7 @@ export function Timer({ duration = 15, breakDuration = 5 }: TimerProps) {
         >
           <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
             <circle cx="50" cy="50" r="44" fill="none" stroke="var(--ui-surface-soft)" strokeWidth="8" />
-            <motion.circle
+            <m.circle
               cx="50"
               cy="50"
               r="44"

@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 
 type ProgressTone = 'brand' | 'info' | 'warning' | 'danger';
 
@@ -37,7 +37,7 @@ export function ProgressBar({
       aria-valuenow={Math.min(safeMax, Math.max(0, value))}
       className={`h-3 overflow-hidden rounded-full bg-surface-soft shadow-[inset_0_1px_2px_var(--ui-shadow-color)] ${className}`}
     >
-      <motion.div
+      <m.div
         className={`h-full w-full origin-left rounded-full ${toneClasses[tone]}`}
         initial={false}
         animate={{ scaleX: normalized }}

@@ -1,4 +1,3 @@
-import { motion, useReducedMotion } from 'framer-motion';
 import type { TopicProgress } from '../types';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
@@ -10,8 +9,97 @@ interface TopicPickerProps {
   onBack: () => void;
 }
 
+function getAccuracy(topic: TopicProgress): number | null {
+  return topic.totalAttempts > 0
+    ? Math.round((topic.correctAttempts / topic.totalAttempts) * 100)
+    : null;
+}
+
+function getRecommendedTopic(topics: TopicProgress[]): TopicProgress | null {
+  const startedAndIncomplete = topics
+    .filter((topic) => topic.completed > 0 && topic.completed < topic.total)
+    .sort((a, b) => {
+      const accuracyDifference = (getAccuracy(a) ?? 101) - (getAccuracy(b) ?? 101);
+      const completionDifference =
+        a.completed / Math.max(1, a.total) - b.completed / Math.max(1, b.total);
+      return accuracyDifference || completionDifference;
+    });
+
+  if (startedAndIncomplete[0]) return startedAndIncomplete[0];
+
+  const unstarted = topics.find((topic) => topic.completed === 0);
+  if (unstarted) return unstarted;
+
+  return [...topics].sort((a, b) => (getAccuracy(a) ?? 101) - (getAccuracy(b) ?? 101))[0] ?? null;
+}
+
+function getRecommendationReason(topic: TopicProgress): string {
+  if (topic.completed === 0) return '从未开始的主题中，为你推荐这一项';
+  if (topic.completed < topic.total) return '继续未完成且当前正确率较低的主题';
+  return '所有主题已完成一轮，先巩固当前正确率较低的主题';
+}
+
+interface TopicCardProps {
+  topic: TopicProgress;
+  recommended?: boolean;
+  onSelect: (topic: string) => void;
+}
+
+function TopicCard({ topic, recommended = false, onSelect }: TopicCardProps) {
+  const completion = topic.total > 0 ? Math.round((topic.completed / topic.total) * 100) : 0;
+  const accuracy = getAccuracy(topic);
+  const completed = topic.completed === topic.total && topic.total > 0;
+  const started = topic.completed > 0;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(topic.topic)}
+      className={`group flex min-h-[96px] w-full items-center gap-4 rounded-[1.25rem] border-2 px-4 py-3 text-left transition-[transform,box-shadow,border-color] duration-150 active:translate-y-[2px] ${
+        recommended
+          ? 'border-brand-strong bg-brand-soft shadow-[0_4px_0_var(--ui-brand-shadow)] active:shadow-[0_1px_0_var(--ui-brand-shadow)]'
+          : 'border-line bg-surface shadow-[0_3px_0_var(--ui-line-strong)] hover:border-brand-strong active:shadow-[0_1px_0_var(--ui-line-strong)]'
+      }`}
+    >
+      <span
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+          completed
+            ? 'bg-brand text-brand-ink'
+            : started
+              ? 'bg-info text-white'
+              : 'bg-surface-soft text-muted'
+        }`}
+      >
+        <Icon name={completed ? 'check' : started ? 'play' : 'book'} size={24} />
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-start justify-between gap-3">
+          <span className="font-extrabold leading-snug text-ink [overflow-wrap:anywhere]">{topic.topic}</span>
+          <span className="shrink-0 text-xs font-extrabold tabular-nums text-muted">
+            {topic.completed}/{topic.total}
+          </span>
+        </span>
+        <ProgressBar
+          value={topic.completed}
+          max={topic.total}
+          label={`${topic.topic} 已完成 ${topic.completed} / ${topic.total}`}
+          tone={completed ? 'brand' : 'info'}
+          className="mt-2 h-2.5"
+        />
+        <span className="mt-2 flex items-center justify-between gap-3 text-xs font-bold text-muted">
+          <span>{completed ? '已完成一轮' : started ? `已完成 ${completion}%` : '尚未开始'}</span>
+          <span>{accuracy === null ? '开始学习' : `正确率 ${accuracy}%`}</span>
+        </span>
+      </span>
+      <Icon name="chevron-right" size={21} className="shrink-0 text-faint group-hover:text-brand-strong" />
+    </button>
+  );
+}
+
 export function TopicPicker({ topics, onSelect, onBack }: TopicPickerProps) {
-  const reduceMotion = useReducedMotion();
+  const recommendedTopic = getRecommendedTopic(topics);
+  const otherTopics = topics.filter((topic) => topic.topic !== recommendedTopic?.topic);
 
   return (
     <div className="space-y-6">
@@ -25,71 +113,46 @@ export function TopicPicker({ topics, onSelect, onBack }: TopicPickerProps) {
         >
           返回首页
         </Pressable>
-        <p className="text-sm font-extrabold text-brand-strong">知识路径</p>
         <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">选择一个 Topic</h1>
         <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-muted">
-          按 CIPPE 知识结构排列。每次专注一个主题，未做题会优先出现。
+          每次专注一个主题，练习会优先安排未做题。
         </p>
       </header>
 
-      <ol className="relative space-y-3" aria-label="CIPPE Topic 学习路径">
-        <span
-          aria-hidden="true"
-          className="absolute bottom-8 left-[1.875rem] top-8 w-1 -translate-x-1/2 rounded-full bg-line"
-        />
-        {topics.map((topic, index) => {
-          const completion = topic.total > 0 ? Math.round((topic.completed / topic.total) * 100) : 0;
-          const accuracy = topic.totalAttempts > 0
-            ? Math.round((topic.correctAttempts / topic.totalAttempts) * 100)
-            : null;
-          const completed = topic.completed === topic.total && topic.total > 0;
-          const started = topic.completed > 0;
+      {recommendedTopic ? (
+        <section aria-labelledby="recommended-topic-heading" className="space-y-3">
+          <div>
+            <h2 id="recommended-topic-heading" className="text-lg font-black text-ink">建议下一步</h2>
+            <p className="mt-1 text-sm font-semibold text-muted">
+              {getRecommendationReason(recommendedTopic)}
+            </p>
+          </div>
+          <TopicCard topic={recommendedTopic} recommended onSelect={onSelect} />
+        </section>
+      ) : (
+        <p className="rounded-2xl bg-surface-soft p-4 text-sm font-semibold text-muted">
+          暂时没有可练习的 Topic。
+        </p>
+      )}
 
-          return (
-            <li key={topic.topic} className="relative">
-              <button
-                type="button"
-                onClick={() => onSelect(topic.topic)}
-                className="group flex min-h-[96px] w-full items-center gap-4 rounded-[1.25rem] border-2 border-line bg-surface px-4 py-3 text-left shadow-[0_3px_0_var(--ui-line-strong)] transition-[transform,box-shadow,border-color] duration-150 hover:border-brand-strong active:translate-y-[2px] active:shadow-[0_1px_0_var(--ui-line-strong)]"
-              >
-                <motion.span
-                  className={`relative z-10 flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center rounded-full border-[3px] font-black ${
-                    completed
-                      ? 'border-brand-shadow bg-brand text-brand-ink shadow-[0_4px_0_var(--ui-brand-shadow)]'
-                      : started
-                        ? 'border-info-shadow bg-info text-white shadow-[0_4px_0_var(--ui-info-shadow)]'
-                        : 'border-line-strong bg-surface-soft text-muted shadow-[0_4px_0_var(--ui-line-strong)]'
-                  }`}
-                  whileTap={reduceMotion ? undefined : { scale: 0.96 }}
-                >
-                  {completed ? <Icon name="check" size={27} /> : started ? <Icon name="play" size={24} /> : index + 1}
-                </motion.span>
-
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-start justify-between gap-3">
-                    <span className="font-black leading-snug text-ink">{topic.topic}</span>
-                    <span className="shrink-0 text-xs font-extrabold tabular-nums text-muted">
-                      {topic.completed}/{topic.total}
-                    </span>
-                  </span>
-                  <ProgressBar
-                    value={topic.completed}
-                    max={topic.total}
-                    label={`${topic.topic} 已完成 ${topic.completed} / ${topic.total}`}
-                    tone={completed ? 'brand' : 'info'}
-                    className="mt-2 h-2.5"
-                  />
-                  <span className="mt-2 flex items-center justify-between text-xs font-bold text-muted">
-                    <span>{completed ? '已完成一轮' : started ? `已完成 ${completion}%` : '尚未开始'}</span>
-                    <span>{accuracy === null ? '开始学习' : `正确率 ${accuracy}%`}</span>
-                  </span>
-                </span>
-                <Icon name="chevron-right" size={21} className="shrink-0 text-faint group-hover:text-brand-strong" />
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+      {otherTopics.length > 0 && (
+        <details className="group rounded-[1.25rem] border-2 border-line bg-surface px-4 py-2 shadow-[0_3px_0_var(--ui-line-strong)]">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-1 font-black text-ink marker:content-none [&::-webkit-details-marker]:hidden">
+            <span>查看全部 Topic</span>
+            <span className="flex items-center gap-2 text-sm font-extrabold text-muted">
+              {otherTopics.length} 个
+              <Icon name="chevron-right" size={20} className="transition-transform duration-150 group-open:rotate-90" />
+            </span>
+          </summary>
+          <ul className="space-y-3 border-t-2 border-line py-4" aria-label="其他 CIPPE Topic">
+            {otherTopics.map((topic) => (
+              <li key={topic.topic}>
+                <TopicCard topic={topic} onSelect={onSelect} />
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

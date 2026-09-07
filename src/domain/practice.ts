@@ -76,8 +76,9 @@ export function buildLearningStates(progress: UserProgress[]): Record<number, Qu
   return states;
 }
 
-export function getPendingMistakeIds(progress: UserProgress[]): number[] {
-  const states = buildLearningStates(progress);
+export function getPendingMistakeIds(
+  states: Record<number, QuestionLearningState>,
+): number[] {
   return Object.entries(states)
     .filter(([, state]) => state.everWrong && state.consecutiveCorrect < 2)
     .map(([questionId]) => Number(questionId));
@@ -136,11 +137,10 @@ function getScopeQuestions(questions: Question[], topic: string | null): Questio
 
 function getReinforcementIds(
   questions: Question[],
-  progress: UserProgress[],
+  states: Record<number, QuestionLearningState>,
   topic: string | null,
 ): number[] {
-  const states = buildLearningStates(progress);
-  const pendingMistakes = new Set(getPendingMistakeIds(progress));
+  const pendingMistakes = new Set(getPendingMistakeIds(states));
   const scope = getScopeQuestions(questions, topic);
   const mistakes = shuffleArray(scope.filter((question) => pendingMistakes.has(question.id))).map(
     (question) => question.id,
@@ -177,7 +177,7 @@ export function createPracticeSession(
   if (options.questionIds) {
     questionIds = shuffleArray(options.questionIds);
   } else if (options.kind === 'mistakes') {
-    questionIds = shuffleArray(getPendingMistakeIds(progress));
+    questionIds = shuffleArray(getPendingMistakeIds(states));
   } else {
     const scope = getScopeQuestions(questions, topic);
     const unseen = shuffleArray(scope.filter((question) => !states[question.id]?.attempted)).map(
@@ -194,7 +194,7 @@ export function createPracticeSession(
       questionIds = unseen;
     } else {
       phase = 'reinforce';
-      questionIds = getReinforcementIds(questions, progress, topic);
+      questionIds = getReinforcementIds(questions, states, topic);
     }
   }
 
@@ -220,7 +220,8 @@ export function addReinforcementRound(
   progress: UserProgress[],
 ): PracticeSession {
   const round = session.round + 1;
-  const questionIds = getReinforcementIds(questions, progress, session.topic);
+  const states = buildLearningStates(progress);
+  const questionIds = getReinforcementIds(questions, states, session.topic);
 
   return {
     ...session,

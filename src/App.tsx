@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Home } from './components/Home';
 import { TopicPicker } from './components/TopicPicker';
@@ -17,14 +17,30 @@ import {
   addReinforcementRound,
   createPracticeSession,
   getTodayStats,
-  getTopicProgress,
 } from './domain/practice';
 import type {
   PracticeSession,
+  Question,
   RandomPracticeSettings,
   StudySettings,
 } from './types';
-import { QUESTIONS } from './data/questions';
+import {
+  getCatalogTopicProgress,
+  getUnseenQuestionCount,
+  QUESTION_COUNT,
+} from './data/questionCatalog';
+
+let questionBankPromise: Promise<Question[]> | null = null;
+
+function loadQuestionBank(): Promise<Question[]> {
+  questionBankPromise ??= import('./data/questions')
+    .then(({ QUESTIONS }) => QUESTIONS)
+    .catch((error) => {
+      questionBankPromise = null;
+      throw error;
+    });
+  return questionBankPromise;
+}
 
 const DEFAULT_SETTINGS: StudySettings = {
   tomatoDuration: 15,
@@ -64,8 +80,25 @@ interface NavigationItem {
   active: boolean;
 }
 
+const VIEW_TITLES: Record<View, string> = {
+  home: '首页',
+  topics: '专题练习',
+  random: '随机组卷',
+  practice: '答题练习',
+  milestone: '阶段完成',
+  result: '练习结果',
+  timer: '番茄钟',
+  achievements: '成就',
+  settings: '设置',
+};
+
 function App() {
+  const mainRef = useRef<HTMLElement>(null);
+  const hasMounted = useRef(false);
   const [currentView, setCurrentView] = useState<View>('home');
+  const [questions, setQuestions] = useState<Question[] | null>(null);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
   const [transitionDirection, setTransitionDirection] = useState<-1 | 0 | 1>(1);
   const navigate = useCallback((view: View, direction: -1 | 0 | 1 = 1) => {
     setTransitionDirection(direction);
@@ -88,14 +121,50 @@ function App() {
     mistakeIds,
     recordAnswer,
     recordAnswers,
+    recordTomatoSession,
   } = useProgress();
 
-  const topicProgress = useMemo(() => getTopicProgress(QUESTIONS, progress), [progress]);
-  const todayStats = useMemo(() => getTodayStats(progress), [progress]);
-  const unseenCount = useMemo(
-    () => QUESTIONS.filter((question) => !learningStates[question.id]?.attempted).length,
+  useEffect(() => {
+    document.documentElement.dataset.theme = settings.theme;
+    document.documentElement.dataset.fontSize = settings.fontSize;
+  }, [settings.fontSize, settings.theme]);
+
+  useEffect(() => {
+    document.title = `${VIEW_TITLES[currentView]} · CIPPE 学习终端`;
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      mainRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentView]);
+
+  const topicProgress = useMemo(
+    () => getCatalogTopicProgress(learningStates),
     [learningStates],
   );
+  const todayStats = useMemo(() => getTodayStats(progress), [progress]);
+  const unseenCount = useMemo(() => getUnseenQuestionCount(learningStates), [learningStates]);
+
+  const ensureQuestionBank = useCallback(async () => {
+    if (questions) return questions;
+
+    setIsLoadingQuestions(true);
+    setQuestionLoadError(null);
+    try {
+      const loadedQuestions = await loadQuestionBank();
+      setQuestions(loadedQuestions);
+      return loadedQuestions;
+    } catch {
+      setQuestionLoadError('题库加载失败，请检查网络后重试。');
+      return null;
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  }, [questions]);
 
   const launchSession = useCallback((session: PracticeSession) => {
     if (session.items.length === 0) return;
@@ -109,29 +178,42 @@ function App() {
     navigate('practice', 1);
   }, [activeSession, navigate, setActiveSession]);
 
-  const startAll = useCallback(() => {
-    launchSession(createPracticeSession(QUESTIONS, progress, { kind: 'all' }));
-  }, [launchSession, progress]);
+  const startRecommended = useCallback(async () => {
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
+    launchSession(createPracticeSession(questionBank, progress, {
+      kind: 'random',
+      mode: 'study',
+      topic: null,
+      count: 5,
+    }));
+  }, [ensureQuestionBank, launchSession, progress]);
 
-  const startMistakes = useCallback(() => {
-    launchSession(createPracticeSession(QUESTIONS, progress, { kind: 'mistakes' }));
-  }, [launchSession, progress]);
+  const startMistakes = useCallback(async () => {
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
+    launchSession(createPracticeSession(questionBank, progress, { kind: 'mistakes' }));
+  }, [ensureQuestionBank, launchSession, progress]);
 
-  const startTopic = useCallback((topic: string) => {
-    launchSession(createPracticeSession(QUESTIONS, progress, { kind: 'topic', topic }));
-  }, [launchSession, progress]);
+  const startTopic = useCallback(async (topic: string) => {
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
+    launchSession(createPracticeSession(questionBank, progress, { kind: 'topic', topic }));
+  }, [ensureQuestionBank, launchSession, progress]);
 
-  const startRandom = useCallback((nextSettings: RandomPracticeSettings) => {
+  const startRandom = useCallback(async (nextSettings: RandomPracticeSettings) => {
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
     setRandomSettings(nextSettings);
     launchSession(
-      createPracticeSession(QUESTIONS, progress, {
+      createPracticeSession(questionBank, progress, {
         kind: 'random',
         mode: nextSettings.mode,
         topic: nextSettings.topic,
         count: nextSettings.count,
       }),
     );
-  }, [launchSession, progress, setRandomSettings]);
+  }, [ensureQuestionBank, launchSession, progress, setRandomSettings]);
 
   const updateActiveSession = useCallback(
     (updater: (session: PracticeSession) => PracticeSession) => {
@@ -161,44 +243,50 @@ function App() {
     navigate('milestone', 1);
   }, [navigate, setActiveSession]);
 
-  const continueReinforcement = useCallback(() => {
+  const continueReinforcement = useCallback(async () => {
     if (!activeSession) return;
-    const nextSession = addReinforcementRound(activeSession, QUESTIONS, progress);
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
+    const nextSession = addReinforcementRound(activeSession, questionBank, progress);
     setActiveSession(nextSession);
     navigate('practice', 1);
-  }, [activeSession, navigate, progress, setActiveSession]);
+  }, [activeSession, ensureQuestionBank, navigate, progress, setActiveSession]);
 
-  const reviewSpecificMistakes = useCallback((questionIds: number[]) => {
+  const reviewSpecificMistakes = useCallback(async (questionIds: number[]) => {
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
     launchSession(
-      createPracticeSession(QUESTIONS, progress, {
+      createPracticeSession(questionBank, progress, {
         kind: 'mistakes',
         questionIds,
       }),
     );
-  }, [launchSession, progress]);
+  }, [ensureQuestionBank, launchSession, progress]);
 
-  const repeatLastSession = useCallback(() => {
+  const repeatLastSession = useCallback(async () => {
     if (!lastResult) return;
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
     launchSession(
-      createPracticeSession(QUESTIONS, progress, {
+      createPracticeSession(questionBank, progress, {
         kind: lastResult.kind,
         mode: lastResult.mode,
         topic: lastResult.topic,
         count: lastResult.requestedCount,
       }),
     );
-  }, [lastResult, launchSession, progress]);
+  }, [ensureQuestionBank, lastResult, launchSession, progress]);
 
-  const fontSizeClass = {
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg',
-  }[settings.fontSize];
+  const resumeSession = useCallback(async () => {
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
+    navigate('practice', 1);
+  }, [ensureQuestionBank, navigate]);
 
   const showAppHeader = currentView !== 'practice';
   const showBottomNav = !['practice', 'milestone', 'result'].includes(currentView);
   const homeTabActive = ['home', 'topics', 'random'].includes(currentView);
-  const completedCount = QUESTIONS.length - unseenCount;
+  const completedCount = QUESTION_COUNT - unseenCount;
   const navItems: NavigationItem[] = [
     { id: 'home', label: '首页', icon: 'home', active: homeTabActive },
     { id: 'timer', label: '番茄钟', icon: 'timer', active: currentView === 'timer' },
@@ -209,7 +297,8 @@ function App() {
   return (
     <div
       data-theme={settings.theme}
-      className={`min-h-screen bg-app text-ink transition-colors duration-200 ${fontSizeClass}`}
+      data-font-size={settings.fontSize}
+      className="min-h-screen bg-app text-ink transition-colors duration-200"
     >
       {showAppHeader && (
         <header className="app-safe-top sticky top-0 z-40 border-b-2 border-line bg-surface">
@@ -227,96 +316,112 @@ function App() {
             </button>
             <div className="flex items-center gap-2 rounded-xl bg-surface-soft px-3 py-2 text-xs font-extrabold text-muted">
               <Icon name="target" size={17} className="text-brand-strong" />
-              <span className="tabular-nums">{completedCount}/{QUESTIONS.length}</span>
+              <span className="tabular-nums">题库 {completedCount}/{QUESTION_COUNT}</span>
             </div>
           </div>
         </header>
       )}
 
-      <main className={`mx-auto max-w-4xl px-4 ${showAppHeader ? 'py-5' : 'py-3'} ${showBottomNav ? 'pb-28' : 'pb-8'}`}>
+      <main
+        ref={mainRef}
+        tabIndex={-1}
+        aria-label={VIEW_TITLES[currentView]}
+        className={`mx-auto max-w-4xl px-4 focus:outline-none ${showAppHeader ? 'py-5' : 'py-3'} ${showBottomNav ? 'pb-28' : 'pb-8'}`}
+      >
+        <div hidden={currentView !== 'timer'}>
+          <Timer
+            duration={settings.tomatoDuration}
+            breakDuration={settings.breakDuration}
+            onFocusComplete={recordTomatoSession}
+          />
+        </div>
+
         <AnimatePresence mode="wait" initial={false}>
-          <PageTransition key={currentView} direction={transitionDirection}>
-            {currentView === 'home' && (
-              <Home
-                totalQuestions={QUESTIONS.length}
-                unseenCount={unseenCount}
-                mistakeCount={mistakeIds.length}
-                todayAnswered={todayStats.answered}
-                todayCorrect={todayStats.correct}
-                topicCount={topicProgress.length}
-                activeSession={activeSession}
-                onStartAll={startAll}
-                onStartMistakes={startMistakes}
-                onOpenTopics={() => navigate('topics', 1)}
-                onOpenRandom={() => navigate('random', 1)}
-                onResume={() => navigate('practice', 1)}
-              />
-            )}
+          {currentView !== 'timer' && (
+            <PageTransition key={currentView} direction={transitionDirection}>
+              {currentView === 'home' && (
+                <Home
+                  totalQuestions={QUESTION_COUNT}
+                  unseenCount={unseenCount}
+                  mistakeCount={mistakeIds.length}
+                  todayAnswered={todayStats.answered}
+                  todayCorrect={todayStats.correct}
+                  topicCount={topicProgress.length}
+                  isFirstRun={stats.totalAnswered === 0}
+                  isStarting={isLoadingQuestions}
+                  activeSession={activeSession}
+                  onStartRecommended={startRecommended}
+                  onStartMistakes={startMistakes}
+                  onOpenTopics={() => navigate('topics', 1)}
+                  onOpenRandom={() => navigate('random', 1)}
+                  onResume={resumeSession}
+                />
+              )}
 
-            {currentView === 'topics' && (
-              <TopicPicker
-                topics={topicProgress}
-                onSelect={startTopic}
-                onBack={() => navigate('home', -1)}
-              />
-            )}
+              {currentView === 'topics' && (
+                <TopicPicker
+                  topics={topicProgress}
+                  onSelect={startTopic}
+                  onBack={() => navigate('home', -1)}
+                />
+              )}
 
-            {currentView === 'random' && (
-              <RandomSetup
-                initialSettings={randomSettings}
-                topics={topicProgress}
-                onStart={startRandom}
-                onBack={() => navigate('home', -1)}
-              />
-            )}
+              {currentView === 'random' && (
+                <RandomSetup
+                  initialSettings={randomSettings}
+                  topics={topicProgress}
+                  onStart={startRandom}
+                  onBack={() => navigate('home', -1)}
+                />
+              )}
 
-            {currentView === 'practice' && activeSession && (
-              <PracticeView
-                session={activeSession}
-                questions={QUESTIONS}
-                soundEnabled={settings.soundEnabled}
-                updateSession={updateActiveSession}
-                onRecordAnswer={recordAnswer}
-                onSubmitExam={submitExam}
-                onPause={() => navigate('home', -1)}
-                onFinish={finishSession}
-                onDiscardEmpty={discardEmptySession}
-                onBoundary={reachBoundary}
-              />
-            )}
+              {currentView === 'practice' && activeSession && questions && (
+                <PracticeView
+                  key={activeSession.id}
+                  session={activeSession}
+                  questions={questions}
+                  soundEnabled={settings.soundEnabled}
+                  updateSession={updateActiveSession}
+                  onRecordAnswer={recordAnswer}
+                  onSubmitExam={submitExam}
+                  onPause={() => navigate('home', -1)}
+                  onFinish={finishSession}
+                  onDiscardEmpty={discardEmptySession}
+                  onBoundary={reachBoundary}
+                />
+              )}
 
-            {currentView === 'milestone' && activeSession && (
-              <MilestoneView
-                session={activeSession}
-                onContinue={continueReinforcement}
-                onFinish={() => finishSession(activeSession)}
-              />
-            )}
+              {currentView === 'milestone' && activeSession && (
+                <MilestoneView
+                  session={activeSession}
+                  onContinue={continueReinforcement}
+                  onFinish={() => finishSession(activeSession)}
+                />
+              )}
 
-            {currentView === 'result' && lastResult && (
-              <ResultView
-                session={lastResult}
-                remainingMistakeCount={mistakeIds.length}
-                onReviewMistakes={reviewSpecificMistakes}
-                onAgain={repeatLastSession}
-                onHome={() => navigate('home', -1)}
-              />
-            )}
+              {currentView === 'result' && lastResult && (
+                <ResultView
+                  session={lastResult}
+                  remainingMistakeCount={mistakeIds.length}
+                  onReviewMistakes={reviewSpecificMistakes}
+                  onAgain={repeatLastSession}
+                  onHome={() => navigate('home', -1)}
+                />
+              )}
 
-            {currentView === 'timer' && (
-              <Timer
-                duration={settings.tomatoDuration}
-                breakDuration={settings.breakDuration}
-              />
-            )}
+              {currentView === 'achievements' && <Achievements stats={stats} />}
 
-            {currentView === 'achievements' && <Achievements stats={stats} />}
-
-            {currentView === 'settings' && (
-              <Settings settings={settings} onUpdate={setSettings} />
-            )}
-          </PageTransition>
+              {currentView === 'settings' && (
+                <Settings settings={settings} onUpdate={setSettings} />
+              )}
+            </PageTransition>
+          )}
         </AnimatePresence>
+        {questionLoadError && (
+          <p role="alert" className="mx-auto mt-4 max-w-2xl rounded-xl bg-danger-soft px-4 py-3 text-sm font-bold text-danger-ink">
+            {questionLoadError}
+          </p>
+        )}
       </main>
 
       {showBottomNav && (

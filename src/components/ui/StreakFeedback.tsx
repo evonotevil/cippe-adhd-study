@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { getStreakFeedback } from '../../utils/streak';
 import { Celebration } from './Celebration';
 import { Icon } from './Icons';
@@ -24,14 +24,14 @@ export function StreakFeedbackBadge({ streak }: StreakFeedbackBadgeProps) {
       )}
       {feedback.tier === 'nice' && !reduceMotion && (
         <>
-          <motion.span
+          <m.span
             aria-hidden="true"
             className="absolute -left-3 top-2 h-1 w-3 rounded-full bg-info"
             initial={{ opacity: 0, x: 5, rotate: -32 }}
             animate={{ opacity: [0, 1, 0], x: 0, rotate: -32 }}
             transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
           />
-          <motion.span
+          <m.span
             aria-hidden="true"
             className="absolute -right-2 top-1 h-1 w-3 rounded-full bg-info"
             initial={{ opacity: 0, x: -5, rotate: 28 }}
@@ -41,7 +41,7 @@ export function StreakFeedbackBadge({ streak }: StreakFeedbackBadgeProps) {
         </>
       )}
       {feedback.emphasized && !reduceMotion && (
-        <motion.span
+        <m.span
           aria-hidden="true"
           className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-warning"
           initial={{ opacity: 0.7, scale: 0.55 }}
@@ -49,7 +49,7 @@ export function StreakFeedbackBadge({ streak }: StreakFeedbackBadgeProps) {
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
         />
       )}
-      <motion.div
+      <m.div
         initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8, rotate: -2 }}
         animate={{ opacity: 1, y: 0, rotate: 0 }}
         transition={{ duration: reduceMotion ? 0.08 : 0.22, ease: [0.16, 1, 0.3, 1] }}
@@ -59,7 +59,7 @@ export function StreakFeedbackBadge({ streak }: StreakFeedbackBadgeProps) {
           {feedback.label}
         </span>
         <p className="mt-2 text-sm font-extrabold">{feedback.detail}</p>
-      </motion.div>
+      </m.div>
     </div>
   );
 }
@@ -79,7 +79,7 @@ export function StreakChip({ streak }: StreakChipProps) {
     : 'bg-info-soft text-info-ink';
 
   return (
-    <motion.span
+    <m.span
       key={streak}
       initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -90,6 +90,6 @@ export function StreakChip({ streak }: StreakChipProps) {
     >
       <Icon name="bolt" size={14} />
       连对 {streak}
-    </motion.span>
+    </m.span>
   );
 }

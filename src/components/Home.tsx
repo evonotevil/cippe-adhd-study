@@ -11,8 +11,10 @@ interface HomeProps {
   todayAnswered: number;
   todayCorrect: number;
   topicCount: number;
+  isFirstRun: boolean;
+  isStarting: boolean;
   activeSession: PracticeSession | null;
-  onStartAll: () => void;
+  onStartRecommended: () => void;
   onStartMistakes: () => void;
   onOpenTopics: () => void;
   onOpenRandom: () => void;
@@ -57,7 +59,7 @@ function ModeRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-start justify-between gap-3">
-          <span className="text-base font-black text-ink">{title}</span>
+          <span className="text-base font-extrabold text-ink">{title}</span>
           <span className="shrink-0 text-xs font-extrabold text-muted sm:text-sm">{detail}</span>
         </span>
         <span className="mt-1 block text-sm font-semibold leading-snug text-muted">{description}</span>
@@ -74,8 +76,10 @@ export function Home({
   todayAnswered,
   todayCorrect,
   topicCount,
+  isFirstRun,
+  isStarting,
   activeSession,
-  onStartAll,
+  onStartRecommended,
   onStartMistakes,
   onOpenTopics,
   onOpenRandom,
@@ -92,9 +96,8 @@ export function Home({
       <section aria-labelledby="home-heading" className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-extrabold text-brand-strong">今天学什么？</p>
-            <h1 id="home-heading" className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">
-              选一个小目标
+            <h1 id="home-heading" className="text-3xl font-black tracking-[-0.025em] text-ink">
+              {isFirstRun ? '先完成 5 题，找到起点' : '今天选一个小目标'}
             </h1>
           </div>
           <div className="rounded-2xl bg-warning-soft px-3 py-2 text-right text-warning-ink">
@@ -153,7 +156,8 @@ export function Home({
           variant="featured"
           block
           size="lg"
-          onClick={onStartAll}
+          onClick={onStartRecommended}
+          disabled={isStarting}
           className="min-h-[116px] justify-start px-5 py-5 text-left"
         >
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface/65 text-brand-ink">
@@ -161,10 +165,14 @@ export function Home({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-xl font-black tracking-[-0.02em]">
-              {unseenCount > 0 ? '全库刷题' : '巩固练习'}
+              {isStarting ? '正在准备题目…' : isFirstRun ? '开始第一组 5 题' : '开始推荐 5 题'}
             </span>
             <span className="mt-1 block text-sm font-bold leading-snug opacity-80">
-              {unseenCount > 0 ? `还有 ${unseenCount} 题未做，优先学习新题` : '错题优先，再回顾最久未做的题'}
+              {isFirstRun
+                ? '约 4 分钟 · 每题立即反馈，答完看到掌握情况'
+                : unseenCount > 0
+                  ? '约 4 分钟 · 优先学习未做题'
+                  : '约 4 分钟 · 回顾较久未练的题'}
             </span>
           </span>
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface/55">
@@ -185,7 +193,7 @@ export function Home({
           <ModeRow
             icon="topics"
             title="专题练习"
-            description="按知识路径选择一个 Topic"
+            description="按掌握情况选择一个 Topic"
             detail={`${topicCount} 个`}
             tone="info"
             onClick={onOpenTopics}

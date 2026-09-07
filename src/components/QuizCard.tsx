@@ -1,4 +1,5 @@
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 import type { PracticeMode, Question } from '../types';
 import { useSound } from '../hooks/useSound';
 import { Icon } from './ui/Icons';
@@ -20,6 +21,33 @@ interface QuizCardProps {
 
 type OptionState = 'idle' | 'selected' | 'correct' | 'wrong' | 'muted';
 
+function parseExplanation(explanation: string) {
+  const normalized = explanation
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]*\n[ \t]*/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+  const knowledgeMatch = normalized.match(/知\s*识\s*点\s*[：:]\s*/);
+  const knowledgeIndex = knowledgeMatch?.index ?? -1;
+  const analysis = (knowledgeIndex >= 0 ? normalized.slice(0, knowledgeIndex) : normalized).trim();
+  const memoryCue = knowledgeMatch
+    ? normalized.slice(knowledgeIndex + knowledgeMatch[0].length).trim()
+    : '';
+  const ruleText = analysis
+    .replace(/^正确\s*答案\s*[A-D]\s*[。．.]\s*/i, '')
+    .replace(/^答案\s*[A-D]\s*[：:。．.]\s*/i, '')
+    .trim();
+  const firstSentenceEnd = ruleText.search(/[。！？]/);
+  const summary = firstSentenceEnd >= 0 ? ruleText.slice(0, firstSentenceEnd + 1) : ruleText;
+  const details = firstSentenceEnd >= 0 ? ruleText.slice(firstSentenceEnd + 1).trim() : '';
+
+  return {
+    summary: summary || memoryCue || normalized,
+    memoryCue: summary ? memoryCue : '',
+    details,
+  };
+}
+
 export function QuizCard({
   question,
   mode,
@@ -33,8 +61,27 @@ export function QuizCard({
   onNext,
 }: QuizCardProps) {
   const reduceMotion = useReducedMotion();
+  const nextActionRef = useRef<HTMLDivElement>(null);
   const { playCorrect, playWrong } = useSound(soundEnabled);
   const isCorrect = selectedAnswer === question.correctAnswer;
+  const explanation = parseExplanation(question.explanation);
+  const visibleOptions = showResult
+    ? question.options.filter((option) => {
+        const answer = option.charAt(0);
+        return answer === selectedAnswer || answer === question.correctAnswer;
+      })
+    : question.options;
+
+  useEffect(() => {
+    if (!showResult) return;
+    const frame = window.requestAnimationFrame(() => {
+      nextActionRef.current?.scrollIntoView({
+        block: 'nearest',
+        behavior: reduceMotion ? 'auto' : 'smooth',
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [question.id, reduceMotion, showResult]);
 
   const getOptionState = (answer: string): OptionState => {
     if (showResult) {
@@ -84,15 +131,15 @@ export function QuizCard({
       </header>
 
       <div className="mb-6 space-y-3" role="group" aria-label="答案选项">
-        {question.options.map((option, index) => {
+        {visibleOptions.map((option) => {
           const answer = option.charAt(0);
           const state = getOptionState(answer);
           const resultIcon = state === 'correct' ? 'check' : state === 'wrong' ? 'x' : null;
 
           return (
-            <motion.button
+            <m.button
               type="button"
-              key={`${question.id}-${index}`}
+              key={`${question.id}-${answer}`}
               aria-pressed={answer === selectedAnswer}
               onClick={() => onSelect(answer)}
               disabled={showResult}
@@ -110,56 +157,74 @@ export function QuizCard({
                 {resultIcon ? <Icon name={resultIcon} size={21} /> : answer}
               </span>
               <span className="min-w-0 flex-1 leading-relaxed">{option.slice(3)}</span>
-            </motion.button>
+            </m.button>
           );
         })}
       </div>
 
       <AnimatePresence mode="wait">
         {showResult && (
-          <motion.section
+          <m.section
             key={isCorrect ? 'correct-feedback' : 'wrong-feedback'}
-            role="status"
-            aria-live="polite"
             initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0.08 : 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative mb-6 overflow-hidden rounded-[1.25rem] border-2 p-4 sm:p-5 ${
-              isCorrect
-                ? 'border-brand-shadow bg-brand-soft text-brand-soft-ink'
-                : 'border-danger-shadow bg-danger-soft text-danger-ink'
-            }`}
+            className="relative mb-6 rounded-[1.25rem] border-2 border-line bg-surface p-4 text-ink shadow-[0_4px_0_var(--ui-line-strong)] sm:p-5"
           >
-            <div className="relative z-10 flex items-start gap-3">
-              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isCorrect ? 'bg-brand text-brand-ink' : 'bg-danger text-white'}`}>
-                <Icon name={isCorrect ? 'check' : 'x'} size={25} />
-              </span>
-              <div className="min-w-0 flex-1">
-                {isCorrect ? (
-                  <StreakFeedbackBadge streak={Math.max(1, correctStreak)} />
-                ) : (
-                  <>
-                    <h2 className="text-lg font-black">这题再记一下</h2>
-                    <p className="mt-1 text-sm font-bold">正确答案是 {question.correctAnswer}</p>
-                  </>
-                )}
+            <div className="relative z-10">
+              <div role="status" aria-live="polite" aria-atomic="true">
+                <div className="flex items-start gap-3">
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isCorrect ? 'bg-brand text-brand-ink' : 'bg-danger text-white'}`}>
+                    <Icon name={isCorrect ? 'check' : 'x'} size={25} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    {isCorrect ? (
+                      <StreakFeedbackBadge streak={Math.max(1, correctStreak)} />
+                    ) : (
+                      <>
+                        <h2 className="text-lg font-black text-danger-ink">答案需要调整</h2>
+                        <p className="mt-1 text-sm font-bold">正确答案是 {question.correctAnswer}</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-xs font-extrabold text-muted">先记这一条</p>
+                  <p className="mt-1 text-sm font-semibold leading-relaxed text-ink">
+                    {explanation.summary}
+                  </p>
+                </div>
               </div>
+              {explanation.memoryCue && (
+                <p className="mt-3 rounded-xl bg-surface-soft px-3 py-2 text-sm font-medium leading-relaxed text-ink">
+                  <span className="font-extrabold">知识点：</span>
+                  {explanation.memoryCue}
+                </p>
+              )}
             </div>
-            <p className="relative z-10 mt-4 whitespace-pre-wrap text-sm font-medium leading-relaxed text-ink">
-              {question.explanation}
-            </p>
-            <Pressable
-              variant={isCorrect ? 'primary' : 'danger'}
-              size="lg"
-              block
-              onClick={onNext}
-              trailing={<Icon name="arrow-right" size={20} />}
-              className="relative z-10 mt-5"
-            >
-              下一题
-            </Pressable>
-          </motion.section>
+            <div ref={nextActionRef} className="relative z-10 mt-5 scroll-mb-4">
+              <Pressable
+                variant="primary"
+                size="lg"
+                block
+                onClick={onNext}
+                trailing={<Icon name="arrow-right" size={20} />}
+              >
+                下一题
+              </Pressable>
+            </div>
+            {explanation.details && (
+              <details className="relative z-10 mt-4 border-t border-line pt-3 text-sm">
+                <summary className="min-h-11 cursor-pointer rounded-lg px-2 py-3 font-extrabold text-muted transition-colors hover:bg-surface-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">
+                  展开完整分析
+                </summary>
+                <p className="max-w-[70ch] px-2 pb-1 pt-2 font-medium leading-relaxed text-ink">
+                  {explanation.details}
+                </p>
+              </details>
+            )}
+          </m.section>
         )}
       </AnimatePresence>
 
