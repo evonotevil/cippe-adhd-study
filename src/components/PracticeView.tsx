@@ -1,8 +1,14 @@
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PracticeAttempt, PracticeSession, Question } from '../types';
+import type { PracticeAttempt, PracticeItem, PracticeSession, Question } from '../types';
 import { getSessionTitle } from '../domain/practice';
 import { formatTime } from '../utils/helpers';
+import { getCurrentCorrectStreak } from '../utils/streak';
 import { QuizCard } from './QuizCard';
+import { Icon } from './ui/Icons';
+import { Pressable } from './ui/Pressable';
+import { ProgressBar } from './ui/ProgressBar';
+import { StreakChip } from './ui/StreakFeedback';
 
 interface AnswerRecord {
   questionId: number;
@@ -35,7 +41,9 @@ export function PracticeView({
   onDiscardEmpty,
   onBoundary,
 }: PracticeViewProps) {
+  const reduceMotion = useReducedMotion();
   const [showExamReview, setShowExamReview] = useState(false);
+  const [questionDirection, setQuestionDirection] = useState<-1 | 1>(1);
   const questionStartedAt = useRef<number | null>(null);
   const currentItem = session.items[session.currentIndex];
   const questionMap = useMemo(
@@ -57,10 +65,10 @@ export function PracticeView({
 
   useEffect(() => {
     questionStartedAt.current = Date.now();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentItem?.key]);
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  }, [currentItem?.key, reduceMotion]);
 
-  const updateCurrentItem = (changes: Partial<typeof currentItem>) => {
+  const updateCurrentItem = (changes: Partial<PracticeItem>) => {
     if (!currentItem) return;
     updateSession((current) => ({
       ...current,
@@ -100,6 +108,7 @@ export function PracticeView({
   };
 
   const moveToIndex = (index: number) => {
+    setQuestionDirection(index >= session.currentIndex ? 1 : -1);
     updateSession((current) => ({ ...current, currentIndex: index }));
   };
 
@@ -118,6 +127,7 @@ export function PracticeView({
 
   const handleSkip = () => {
     if (!currentItem) return;
+    setQuestionDirection(1);
     updateSession((current) => {
       const index = current.items.findIndex((item) => item.key === currentItem.key);
       if (index < 0) return current;
@@ -186,11 +196,14 @@ export function PracticeView({
 
   if (!currentItem || !currentQuestion) {
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center">
-        <p className="font-semibold text-amber-900">这组练习没有可用题目</p>
-        <button type="button" onClick={onDiscardEmpty} className="mt-4 text-sm font-semibold text-blue-700">
+      <div className="mx-auto max-w-lg rounded-[1.25rem] border-2 border-warning-shadow bg-warning-soft p-6 text-center text-warning-ink">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-warning">
+          <Icon name="bolt" size={24} />
+        </span>
+        <p className="mt-4 font-black">这组练习没有可用题目</p>
+        <Pressable variant="neutral" block onClick={onDiscardEmpty} className="mt-5">
           返回首页
-        </button>
+        </Pressable>
       </div>
     );
   }
@@ -201,25 +214,30 @@ export function PracticeView({
     : `本次已完成 ${session.attempts.length} 题`;
   const answeredCount = session.items.filter((item) => item.selectedAnswer).length;
   const flaggedCount = session.items.filter((item) => item.flagged).length;
+  const progressValue = session.mode === 'exam' ? answeredCount : session.currentIndex + 1;
+  const correctStreak = session.mode === 'study' ? getCurrentCorrectStreak(session.attempts) : 0;
 
   if (showExamReview) {
     return (
-      <div className="mx-auto max-w-2xl space-y-5">
-        <div>
-          <button
-            type="button"
+      <div className="mx-auto max-w-2xl space-y-6">
+        <header>
+          <Pressable
+            variant="ghost"
+            size="sm"
             onClick={() => setShowExamReview(false)}
-            className="mb-4 text-sm font-medium text-gray-500 hover:text-gray-800"
+            leading={<Icon name="arrow-left" size={19} />}
+            className="-ml-3 mb-3"
           >
-            ‹ 返回答题
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900">交卷前检查</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            已答 {answeredCount} / {session.items.length} 题 · 已标记 {flaggedCount} 题 · 用时 {formatTime(session.elapsedSeconds)}
+            返回答题
+          </Pressable>
+          <p className="text-sm font-extrabold text-info">考试模式</p>
+          <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">交卷前检查</h1>
+          <p className="mt-2 text-sm font-semibold text-muted">
+            已答 {answeredCount}/{session.items.length} · 已标记 {flaggedCount} · 用时 {formatTime(session.elapsedSeconds)}
           </p>
-        </div>
+        </header>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section aria-label="题目答题状态" className="rounded-[1.25rem] border-2 border-line bg-surface p-4 shadow-[0_4px_0_var(--ui-line-strong)]">
           <div className="grid grid-cols-5 gap-2 sm:grid-cols-8">
             {session.items.map((item, index) => (
               <button
@@ -229,109 +247,145 @@ export function PracticeView({
                   moveToIndex(index);
                   setShowExamReview(false);
                 }}
-                className={`relative rounded-xl border-2 py-3 text-sm font-bold ${
+                aria-label={`第 ${index + 1} 题，${item.selectedAnswer ? '已答' : '未答'}${item.flagged ? '，已标记' : ''}`}
+                className={`relative min-h-12 rounded-xl border-2 text-sm font-black transition-[transform,box-shadow] active:translate-y-0.5 ${
                   item.selectedAnswer
-                    ? 'border-blue-400 bg-blue-50 text-blue-800'
-                    : 'border-gray-200 bg-white text-gray-500'
+                    ? 'border-info-shadow bg-info-soft text-info-ink shadow-[0_3px_0_var(--ui-info-shadow)]'
+                    : 'border-line bg-surface-soft text-muted shadow-[0_3px_0_var(--ui-line-strong)]'
                 }`}
               >
                 {index + 1}
                 {item.flagged && (
-                  <span className="absolute -right-1 -top-2 text-xs" aria-label="已标记">🚩</span>
+                  <span className="absolute -right-1 -top-2 rounded-full bg-warning p-0.5 text-warning-ink" aria-hidden="true">
+                    <Icon name="flag" size={13} />
+                  </span>
                 )}
               </button>
             ))}
           </div>
-          <div className="mt-4 flex gap-4 text-xs text-gray-500">
-            <span>蓝色：已答</span>
-            <span>白色：未答</span>
-            <span>🚩：待检查</span>
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-muted">
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-info-soft ring-1 ring-info" />已答</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-surface-soft ring-1 ring-line-strong" />未答</span>
+            <span className="flex items-center gap-1.5"><Icon name="flag" size={14} className="text-warning-ink" />待检查</span>
           </div>
-        </div>
+        </section>
 
-        <button
-          type="button"
-          onClick={handleExamSubmit}
-          className="w-full rounded-xl bg-blue-600 px-6 py-4 font-bold text-white hover:bg-blue-700"
-        >
+        <Pressable variant="secondary" size="lg" block onClick={handleExamSubmit}>
           确认交卷
-        </button>
+        </Pressable>
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      <header className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onPause}
-            className="shrink-0 text-sm font-semibold text-gray-500 hover:text-gray-800"
-          >
-            ‹ 首页
-          </button>
-          <div className="min-w-0 text-center">
-            <p className="truncate text-sm font-bold text-gray-900">{getSessionTitle(session)}</p>
-            <p className="mt-0.5 text-xs text-gray-500">
-              {progressText} · {formatTime(session.elapsedSeconds)}
-            </p>
+      <header className="sticky top-0 z-30 -mx-4 -mt-3 border-b-2 border-line bg-app px-4 pb-3 pt-3">
+        <div className="mx-auto max-w-2xl">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onPause}
+              aria-label="保存并返回首页"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface-soft hover:text-ink"
+            >
+              <Icon name="close" size={23} />
+            </button>
+            <ProgressBar
+              value={progressValue}
+              max={session.items.length}
+              label={progressText}
+              tone={session.mode === 'exam' ? 'info' : 'brand'}
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={handleEnd}
+              className="min-h-11 shrink-0 rounded-xl px-2 text-xs font-extrabold text-danger hover:bg-danger-soft"
+            >
+              {session.mode === 'exam' ? '交卷' : '结束'}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={handleEnd}
-            className="shrink-0 text-sm font-semibold text-red-600 hover:text-red-700"
-          >
-            {session.mode === 'exam' ? '提前交卷' : '结束练习'}
-          </button>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1 text-xs font-bold text-muted">
+            <span className="min-w-0 flex-1 truncate">{getSessionTitle(session)}</span>
+            <span className="flex shrink-0 items-center gap-2 tabular-nums">
+              <AnimatePresence initial={false}>
+                {correctStreak >= 2 && <StreakChip key="streak-chip" streak={correctStreak} />}
+              </AnimatePresence>
+              <span>{progressText}</span>
+              <span aria-hidden="true">·</span>
+              <span className="flex items-center gap-1">
+                <Icon name="clock" size={14} />
+                {formatTime(session.elapsedSeconds)}
+              </span>
+            </span>
+          </div>
         </div>
       </header>
 
-      <QuizCard
-        question={currentQuestion}
-        mode={session.mode}
-        selectedAnswer={currentItem.selectedAnswer ?? null}
-        showResult={Boolean(currentItem.submitted)}
-        soundEnabled={soundEnabled}
-        onSelect={handleSelect}
-        onSubmit={handleStudySubmit}
-        onSkip={handleSkip}
-        onNext={handleNext}
-      />
+      <AnimatePresence mode="wait" initial={false} custom={questionDirection}>
+        <motion.div
+          key={currentItem.key}
+          custom={questionDirection}
+          variants={{
+            enter: (direction: number) => ({ opacity: 0, x: reduceMotion ? 0 : direction * 22 }),
+            center: { opacity: 1, x: 0 },
+            exit: (direction: number) => ({ opacity: 0, x: reduceMotion ? 0 : direction * -14 }),
+          }}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: reduceMotion ? 0.08 : 0.2, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <QuizCard
+            question={currentQuestion}
+            mode={session.mode}
+            selectedAnswer={currentItem.selectedAnswer ?? null}
+            showResult={Boolean(currentItem.submitted)}
+            soundEnabled={soundEnabled}
+            correctStreak={correctStreak}
+            onSelect={handleSelect}
+            onSubmit={handleStudySubmit}
+            onSkip={handleSkip}
+            onNext={handleNext}
+          />
+        </motion.div>
+      </AnimatePresence>
 
       {session.mode === 'exam' && (
-        <div className="sticky bottom-3 z-10 mx-auto max-w-2xl rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+        <div className="mt-6 mx-auto max-w-2xl rounded-[1.25rem] border-2 border-line bg-surface p-3 shadow-[0_4px_0_var(--ui-line-strong)]">
           <div className="mb-3 flex items-center justify-between">
             <button
               type="button"
               onClick={() => updateCurrentItem({ flagged: !currentItem.flagged })}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                currentItem.flagged ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:bg-gray-100'
+              aria-pressed={Boolean(currentItem.flagged)}
+              className={`flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-extrabold transition-colors ${
+                currentItem.flagged ? 'bg-warning-soft text-warning-ink' : 'text-muted hover:bg-surface-soft'
               }`}
             >
-              🚩 {currentItem.flagged ? '已标记' : '稍后检查'}
+              <Icon name="flag" size={18} />
+              {currentItem.flagged ? '已标记' : '稍后检查'}
             </button>
-            <span className="text-xs text-gray-500">已答 {answeredCount} / {session.items.length}</span>
+            <span className="text-xs font-bold text-muted">已答 {answeredCount}/{session.items.length}</span>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
+            <Pressable
+              variant="neutral"
               onClick={() => moveToIndex(Math.max(0, session.currentIndex - 1))}
               disabled={session.currentIndex === 0}
-              className="rounded-xl bg-gray-100 px-4 py-3 font-semibold text-gray-700 disabled:opacity-40"
+              leading={<Icon name="arrow-left" size={19} />}
             >
-              ← 上一题
-            </button>
-            <button
-              type="button"
+              上一题
+            </Pressable>
+            <Pressable
+              variant="secondary"
               onClick={() => {
                 if (session.currentIndex === session.items.length - 1) setShowExamReview(true);
                 else moveToIndex(session.currentIndex + 1);
               }}
-              className="rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700"
+              trailing={<Icon name="arrow-right" size={19} />}
             >
-              {session.currentIndex === session.items.length - 1 ? '检查并交卷' : '下一题 →'}
-            </button>
+              {session.currentIndex === session.items.length - 1 ? '检查交卷' : '下一题'}
+            </Pressable>
           </div>
         </div>
       )}

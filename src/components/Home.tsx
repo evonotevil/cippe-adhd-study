@@ -1,5 +1,8 @@
 import type { PracticeSession } from '../types';
 import { getSessionTitle } from '../domain/practice';
+import { Pressable } from './ui/Pressable';
+import { ProgressBar } from './ui/ProgressBar';
+import { Icon, type IconName } from './ui/Icons';
 
 interface HomeProps {
   totalQuestions: number;
@@ -16,50 +19,51 @@ interface HomeProps {
   onResume: () => void;
 }
 
-interface PracticeCardProps {
-  icon: string;
+interface ModeRowProps {
+  icon: IconName;
   title: string;
   description: string;
   detail: string;
-  accent: string;
+  tone: 'danger' | 'info' | 'warning';
   disabled?: boolean;
   onClick: () => void;
 }
 
-function PracticeCard({
+const toneStyles = {
+  danger: 'bg-danger-soft text-danger-ink',
+  info: 'bg-info-soft text-info-ink',
+  warning: 'bg-warning-soft text-warning-ink',
+};
+
+function ModeRow({
   icon,
   title,
   description,
   detail,
-  accent,
+  tone,
   disabled = false,
   onClick,
-}: PracticeCardProps) {
+}: ModeRowProps) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <Pressable
+      variant="neutral"
+      block
       disabled={disabled}
-      className={`w-full rounded-2xl border bg-white p-5 text-left shadow-sm transition-all ${
-        disabled
-          ? 'cursor-not-allowed border-gray-200 opacity-55'
-          : 'border-gray-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md active:translate-y-0'
-      }`}
+      onClick={onClick}
+      className="min-h-[84px] justify-start px-4 py-3 text-left sm:px-5"
     >
-      <div className="flex items-start gap-4">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl ${accent}`}>
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-            <span className="shrink-0 text-sm font-medium text-gray-500">{detail}</span>
-          </div>
-          <p className="mt-1 text-sm leading-relaxed text-gray-600">{description}</p>
-        </div>
-        {!disabled && <span className="mt-3 text-lg text-gray-300">›</span>}
-      </div>
-    </button>
+      <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${toneStyles[tone]}`}>
+        <Icon name={icon} size={25} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-start justify-between gap-3">
+          <span className="text-base font-black text-ink">{title}</span>
+          <span className="shrink-0 text-xs font-extrabold text-muted sm:text-sm">{detail}</span>
+        </span>
+        <span className="mt-1 block text-sm font-semibold leading-snug text-muted">{description}</span>
+      </span>
+      {!disabled && <Icon name="chevron-right" size={20} className="shrink-0 text-faint" />}
+    </Pressable>
   );
 }
 
@@ -78,87 +82,124 @@ export function Home({
   onResume,
 }: HomeProps) {
   const accuracy = todayAnswered > 0 ? Math.round((todayCorrect / todayAnswered) * 100) : 0;
+  const coveredCount = totalQuestions - unseenCount;
   const activeAnswered = activeSession?.mode === 'exam'
     ? activeSession.items.filter((item) => item.selectedAnswer).length
     : activeSession?.attempts.length ?? 0;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-sm font-medium text-blue-600">今天，从一个小目标开始</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900">选择练习方式</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          今日完成 {todayAnswered} 题 · 正确率 {accuracy}%
+    <div className="space-y-6">
+      <section aria-labelledby="home-heading" className="space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-extrabold text-brand-strong">今天学什么？</p>
+            <h1 id="home-heading" className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">
+              选一个小目标
+            </h1>
+          </div>
+          <div className="rounded-2xl bg-warning-soft px-3 py-2 text-right text-warning-ink">
+            <p className="text-lg font-black tabular-nums">{todayAnswered}</p>
+            <p className="text-[11px] font-bold">今日题数</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <ProgressBar
+            value={coveredCount}
+            max={totalQuestions}
+            label={`题库覆盖 ${coveredCount} / ${totalQuestions}`}
+            className="flex-1"
+          />
+          <span className="shrink-0 text-xs font-extrabold tabular-nums text-muted">
+            {coveredCount}/{totalQuestions}
+          </span>
+        </div>
+
+        <p className="text-sm font-semibold text-muted">
+          今日正确率 {accuracy}% · {mistakeCount > 0 ? `${mistakeCount} 道错题待巩固` : '错题已清空'}
         </p>
-      </div>
+      </section>
 
       {activeSession && (
         <button
           type="button"
           onClick={onResume}
-          className="w-full rounded-2xl border border-blue-200 bg-blue-50 p-4 text-left transition-colors hover:bg-blue-100"
+          className="w-full rounded-[1.25rem] border-2 border-info-shadow bg-info-soft p-4 text-left shadow-[0_4px_0_var(--ui-info-shadow)] transition-[transform,box-shadow] duration-150 active:translate-y-[3px] active:shadow-[0_1px_0_var(--ui-info-shadow)]"
         >
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-blue-600">继续未完成练习</p>
-              <p className="mt-1 font-semibold text-gray-900">{getSessionTitle(activeSession)}</p>
-              <p className="mt-1 text-sm text-gray-600">
-                已完成 {activeAnswered} / {activeSession.items.length} 题
-              </p>
-            </div>
-            <span className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white">
-              继续
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-info text-white">
+              <Icon name="play" size={21} />
             </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-extrabold text-info-ink">继续未完成练习</span>
+              <span className="mt-0.5 block truncate font-black text-ink">{getSessionTitle(activeSession)}</span>
+              <span className="mt-2 block">
+                <ProgressBar
+                  value={activeAnswered}
+                  max={Math.max(1, activeSession.items.length)}
+                  label={`已完成 ${activeAnswered} / ${activeSession.items.length} 题`}
+                  tone="info"
+                  className="h-2"
+                />
+              </span>
+            </span>
+            <Icon name="chevron-right" size={22} className="text-info-ink" />
           </div>
         </button>
       )}
 
-      <div className="space-y-3">
-        <PracticeCard
-          icon={unseenCount > 0 ? '▶' : '↻'}
-          title={unseenCount > 0 ? '全库刷题' : '巩固练习'}
-          description={
-            unseenCount > 0
-              ? '不限题数，未做题优先'
-              : '错题优先，再回顾最久未做的题'
-          }
-          detail={unseenCount > 0 ? `未做 ${unseenCount} 题` : `${totalQuestions} 题已覆盖`}
-          accent="bg-blue-100 text-blue-700"
+      <section aria-label="练习模式" className="space-y-4">
+        <Pressable
+          variant="featured"
+          block
+          size="lg"
           onClick={onStartAll}
-        />
+          className="min-h-[116px] justify-start px-5 py-5 text-left"
+        >
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface/65 text-brand-ink">
+            <Icon name={unseenCount > 0 ? 'play' : 'refresh'} size={29} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xl font-black tracking-[-0.02em]">
+              {unseenCount > 0 ? '全库刷题' : '巩固练习'}
+            </span>
+            <span className="mt-1 block text-sm font-bold leading-snug opacity-80">
+              {unseenCount > 0 ? `还有 ${unseenCount} 题未做，优先学习新题` : '错题优先，再回顾最久未做的题'}
+            </span>
+          </span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface/55">
+            <Icon name="arrow-right" size={20} />
+          </span>
+        </Pressable>
 
-        <PracticeCard
-          icon="↻"
-          title="错题复习"
-          description={
-            mistakeCount > 0
-              ? '随机练一轮，连续答对两次即掌握'
-              : '暂无待复习错题，继续保持'
-          }
-          detail={mistakeCount > 0 ? `待复习 ${mistakeCount} 题` : '已清空'}
-          accent="bg-rose-100 text-rose-700"
-          disabled={mistakeCount === 0}
-          onClick={onStartMistakes}
-        />
-
-        <PracticeCard
-          icon="▦"
-          title="专题练习"
-          description="查看进度，选择一个 Topic 持续练习"
-          detail={`${topicCount} 个 Topic`}
-          accent="bg-emerald-100 text-emerald-700"
-          onClick={onOpenTopics}
-        />
-
-        <PracticeCard
-          icon="⚡"
-          title="随机组卷"
-          description="自选题数、Topic 和学习／考试模式"
-          detail="5 / 10 / 20 / 自定"
-          accent="bg-amber-100 text-amber-700"
-          onClick={onOpenRandom}
-        />
-      </div>
+        <div className="space-y-3">
+          <ModeRow
+            icon="refresh"
+            title="错题复习"
+            description={mistakeCount > 0 ? '连续答对两次，就算真正掌握' : '暂无待复习错题，继续保持'}
+            detail={mistakeCount > 0 ? `${mistakeCount} 题` : '已清空'}
+            tone="danger"
+            disabled={mistakeCount === 0}
+            onClick={onStartMistakes}
+          />
+          <ModeRow
+            icon="topics"
+            title="专题练习"
+            description="按知识路径选择一个 Topic"
+            detail={`${topicCount} 个`}
+            tone="info"
+            onClick={onOpenTopics}
+          />
+          <ModeRow
+            icon="bolt"
+            title="随机组卷"
+            description="自选题数、范围和答题模式"
+            detail="5 / 10 / 20"
+            tone="warning"
+            onClick={onOpenRandom}
+          />
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,5 +1,9 @@
 import type { PracticeSession } from '../types';
 import { formatTime } from '../utils/helpers';
+import { getLongestCorrectStreak } from '../utils/streak';
+import { Celebration, ScoreRing } from './ui/Celebration';
+import { Icon } from './ui/Icons';
+import { Pressable } from './ui/Pressable';
 
 interface ResultViewProps {
   session: PracticeSession;
@@ -27,66 +31,80 @@ export function ResultView({
     ),
   );
   const unanswered = session.mode === 'exam' ? session.items.length - session.attempts.length : 0;
+  const longestStreak = getLongestCorrectStreak(session.items, session.attempts);
+  const encouragement = accuracy >= 90
+    ? '知识点连接得很稳，继续保持这个节奏。'
+    : accuracy >= 75
+      ? '不错，这一组已经建立起清晰的记忆。'
+      : '完成比完美更重要，错题会带你找到下一步。';
 
   return (
     <div className="mx-auto max-w-xl py-4 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-3xl">
-        {accuracy >= 80 ? '🎉' : accuracy >= 60 ? '💪' : '🌱'}
+      <div className="relative mx-auto w-fit">
+        {accuracy >= 75 && <Celebration />}
+        <div className="relative z-10 rounded-full bg-surface p-2 shadow-[0_6px_20px_var(--ui-shadow-color)]">
+          <ScoreRing value={accuracy} />
+        </div>
       </div>
-      <h1 className="mt-5 text-2xl font-bold text-gray-900">本次练习完成</h1>
-      <p className="mt-2 text-sm text-gray-500">每完成一组，都会让知识结构更清晰一点。</p>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:grid-cols-4">
-        <div>
-          <p className="text-2xl font-bold text-gray-900">{denominator}</p>
-          <p className="mt-1 text-xs text-gray-500">答题数</p>
+      <h1 className="mt-6 text-3xl font-black tracking-[-0.025em] text-ink">这一组完成了</h1>
+      <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-relaxed text-muted">{encouragement}</p>
+
+      <section aria-label="练习结果" className="mt-7 grid grid-cols-2 overflow-hidden rounded-[1.25rem] border-2 border-line bg-surface">
+        <div className="border-b-2 border-r-2 border-line p-4">
+          <p className="text-xl font-black tabular-nums text-ink">{denominator}</p>
+          <p className="mt-1 text-xs font-bold text-muted">答题数</p>
         </div>
-        <div>
-          <p className="text-2xl font-bold text-emerald-600">{accuracy}%</p>
-          <p className="mt-1 text-xs text-gray-500">正确率</p>
+        <div className="border-b-2 border-line p-4">
+          <p className="text-xl font-black tabular-nums text-brand-strong">{accuracy}%</p>
+          <p className="mt-1 text-xs font-bold text-muted">正确率</p>
         </div>
-        <div>
-          <p className="text-2xl font-bold text-gray-900">{formatTime(session.elapsedSeconds)}</p>
-          <p className="mt-1 text-xs text-gray-500">总用时</p>
+        <div className="border-r-2 border-line p-4">
+          <p className="text-xl font-black tabular-nums text-info">{formatTime(session.elapsedSeconds)}</p>
+          <p className="mt-1 text-xs font-bold text-muted">总用时</p>
         </div>
-        <div>
-          <p className="text-2xl font-bold text-rose-600">{wrongQuestionIds.length}</p>
-          <p className="mt-1 text-xs text-gray-500">本次错题</p>
+        <div className="p-4">
+          <p className="inline-flex items-center gap-1 text-xl font-black tabular-nums text-warning-ink">
+            <Icon name="bolt" size={20} />
+            {longestStreak}
+          </p>
+          <p className="mt-1 text-xs font-bold text-muted">最长连对</p>
         </div>
-      </div>
+      </section>
 
       {unanswered > 0 && (
-        <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          本次有 {unanswered} 题未作答，已计入本次正确率，但没有加入错题本。
+        <p className="mt-4 flex items-start gap-2 rounded-2xl bg-warning-soft px-4 py-3 text-left text-sm font-bold leading-relaxed text-warning-ink">
+          <Icon name="flag" size={19} className="mt-0.5 shrink-0" />
+          <span>有 {unanswered} 题未作答，已计入本次成绩，但没有加入错题本。</span>
         </p>
       )}
 
-      <p className="mt-4 text-sm text-gray-500">当前待复习错题：{remainingMistakeCount} 题</p>
+      <p className="mt-4 text-sm font-bold text-muted">当前待复习错题：{remainingMistakeCount} 题</p>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-7 space-y-3">
         {wrongQuestionIds.length > 0 && (
-          <button
-            type="button"
+          <Pressable
+            variant="danger"
+            size="lg"
+            block
             onClick={() => onReviewMistakes(wrongQuestionIds)}
-            className="w-full rounded-xl bg-rose-600 px-6 py-4 font-bold text-white hover:bg-rose-700"
+            leading={<Icon name="refresh" size={21} />}
           >
-            复习本次错题
-          </button>
+            复习本次错题（{wrongQuestionIds.length}）
+          </Pressable>
         )}
-        <button
-          type="button"
+        <Pressable
+          variant="primary"
+          size="lg"
+          block
           onClick={onAgain}
-          className="w-full rounded-xl bg-blue-600 px-6 py-4 font-bold text-white hover:bg-blue-700"
+          leading={<Icon name="rotate" size={21} />}
         >
           再来一组
-        </button>
-        <button
-          type="button"
-          onClick={onHome}
-          className="w-full rounded-xl bg-gray-100 px-6 py-4 font-semibold text-gray-700 hover:bg-gray-200"
-        >
+        </Pressable>
+        <Pressable variant="ghost" size="lg" block onClick={onHome}>
           返回首页
-        </button>
+        </Pressable>
       </div>
     </div>
   );

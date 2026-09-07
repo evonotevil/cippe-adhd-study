@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Home } from './components/Home';
 import { TopicPicker } from './components/TopicPicker';
 import { RandomSetup } from './components/RandomSetup';
@@ -9,6 +9,8 @@ import { ResultView } from './components/ResultView';
 import { Timer } from './components/Timer';
 import { Achievements } from './components/Achievements';
 import { Settings } from './components/Settings';
+import { PageTransition } from './components/ui/PageTransition';
+import { Icon, type IconName } from './components/ui/Icons';
 import { useProgress } from './hooks/useProgress';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import {
@@ -55,8 +57,20 @@ interface AnswerRecord {
   timeSpent: number;
 }
 
+interface NavigationItem {
+  id: 'home' | 'timer' | 'achievements' | 'settings';
+  label: string;
+  icon: IconName;
+  active: boolean;
+}
+
 function App() {
   const [currentView, setCurrentView] = useState<View>('home');
+  const [transitionDirection, setTransitionDirection] = useState<-1 | 0 | 1>(1);
+  const navigate = useCallback((view: View, direction: -1 | 0 | 1 = 1) => {
+    setTransitionDirection(direction);
+    setCurrentView(view);
+  }, []);
   const [settings, setSettings] = useLocalStorage<StudySettings>('cippe-settings', DEFAULT_SETTINGS);
   const [activeSession, setActiveSession] = useLocalStorage<PracticeSession | null>(
     'cippe-active-session',
@@ -92,8 +106,8 @@ function App() {
       return;
     }
     setActiveSession(session);
-    setCurrentView('practice');
-  }, [activeSession, setActiveSession]);
+    navigate('practice', 1);
+  }, [activeSession, navigate, setActiveSession]);
 
   const startAll = useCallback(() => {
     launchSession(createPracticeSession(QUESTIONS, progress, { kind: 'all' }));
@@ -129,8 +143,8 @@ function App() {
   const finishSession = useCallback((session: PracticeSession) => {
     setLastResult(session);
     setActiveSession(null);
-    setCurrentView('result');
-  }, [setActiveSession]);
+    navigate('result', 1);
+  }, [navigate, setActiveSession]);
 
   const submitExam = useCallback((session: PracticeSession, answers: AnswerRecord[]) => {
     recordAnswers(answers);
@@ -139,20 +153,20 @@ function App() {
 
   const discardEmptySession = useCallback(() => {
     setActiveSession(null);
-    setCurrentView('home');
-  }, [setActiveSession]);
+    navigate('home', -1);
+  }, [navigate, setActiveSession]);
 
   const reachBoundary = useCallback((session: PracticeSession) => {
     setActiveSession(session);
-    setCurrentView('milestone');
-  }, [setActiveSession]);
+    navigate('milestone', 1);
+  }, [navigate, setActiveSession]);
 
   const continueReinforcement = useCallback(() => {
     if (!activeSession) return;
     const nextSession = addReinforcementRound(activeSession, QUESTIONS, progress);
     setActiveSession(nextSession);
-    setCurrentView('practice');
-  }, [activeSession, progress, setActiveSession]);
+    navigate('practice', 1);
+  }, [activeSession, navigate, progress, setActiveSession]);
 
   const reviewSpecificMistakes = useCallback((questionIds: number[]) => {
     launchSession(
@@ -185,29 +199,43 @@ function App() {
   const showBottomNav = !['practice', 'milestone', 'result'].includes(currentView);
   const homeTabActive = ['home', 'topics', 'random'].includes(currentView);
   const completedCount = QUESTIONS.length - unseenCount;
+  const navItems: NavigationItem[] = [
+    { id: 'home', label: '首页', icon: 'home', active: homeTabActive },
+    { id: 'timer', label: '番茄钟', icon: 'timer', active: currentView === 'timer' },
+    { id: 'achievements', label: '成就', icon: 'trophy', active: currentView === 'achievements' },
+    { id: 'settings', label: '设置', icon: 'settings', active: currentView === 'settings' },
+  ];
 
   return (
-    <div className={`min-h-screen bg-slate-50 text-gray-900 ${fontSizeClass}`}>
+    <div
+      data-theme={settings.theme}
+      className={`min-h-screen bg-app text-ink transition-colors duration-200 ${fontSizeClass}`}
+    >
       {showAppHeader && (
-        <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
+        <header className="app-safe-top sticky top-0 z-40 border-b-2 border-line bg-surface">
           <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-            <span className="font-bold tracking-tight text-gray-900">CIPPE 学习终端</span>
-            <span className="text-xs font-medium text-gray-500">
-              已覆盖 {completedCount} / {QUESTIONS.length}
-            </span>
+            <button
+              type="button"
+              onClick={() => navigate('home', -1)}
+              aria-label="返回首页"
+              className="flex min-h-11 items-center gap-2 rounded-xl pr-2 font-black tracking-[-0.02em] text-ink"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-brand-ink shadow-[0_3px_0_var(--ui-brand-strong)]">
+                <Icon name="book" size={21} />
+              </span>
+              <span>CIPPE</span>
+            </button>
+            <div className="flex items-center gap-2 rounded-xl bg-surface-soft px-3 py-2 text-xs font-extrabold text-muted">
+              <Icon name="target" size={17} className="text-brand-strong" />
+              <span className="tabular-nums">{completedCount}/{QUESTIONS.length}</span>
+            </div>
           </div>
         </header>
       )}
 
-      <main className={`mx-auto max-w-4xl px-4 ${showAppHeader ? 'py-5' : 'py-3'} ${showBottomNav ? 'pb-24' : 'pb-8'}`}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentView}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.16 }}
-          >
+      <main className={`mx-auto max-w-4xl px-4 ${showAppHeader ? 'py-5' : 'py-3'} ${showBottomNav ? 'pb-28' : 'pb-8'}`}>
+        <AnimatePresence mode="wait" initial={false}>
+          <PageTransition key={currentView} direction={transitionDirection}>
             {currentView === 'home' && (
               <Home
                 totalQuestions={QUESTIONS.length}
@@ -219,9 +247,9 @@ function App() {
                 activeSession={activeSession}
                 onStartAll={startAll}
                 onStartMistakes={startMistakes}
-                onOpenTopics={() => setCurrentView('topics')}
-                onOpenRandom={() => setCurrentView('random')}
-                onResume={() => setCurrentView('practice')}
+                onOpenTopics={() => navigate('topics', 1)}
+                onOpenRandom={() => navigate('random', 1)}
+                onResume={() => navigate('practice', 1)}
               />
             )}
 
@@ -229,7 +257,7 @@ function App() {
               <TopicPicker
                 topics={topicProgress}
                 onSelect={startTopic}
-                onBack={() => setCurrentView('home')}
+                onBack={() => navigate('home', -1)}
               />
             )}
 
@@ -238,7 +266,7 @@ function App() {
                 initialSettings={randomSettings}
                 topics={topicProgress}
                 onStart={startRandom}
-                onBack={() => setCurrentView('home')}
+                onBack={() => navigate('home', -1)}
               />
             )}
 
@@ -250,7 +278,7 @@ function App() {
                 updateSession={updateActiveSession}
                 onRecordAnswer={recordAnswer}
                 onSubmitExam={submitExam}
-                onPause={() => setCurrentView('home')}
+                onPause={() => navigate('home', -1)}
                 onFinish={finishSession}
                 onDiscardEmpty={discardEmptySession}
                 onBoundary={reachBoundary}
@@ -271,7 +299,7 @@ function App() {
                 remainingMistakeCount={mistakeIds.length}
                 onReviewMistakes={reviewSpecificMistakes}
                 onAgain={repeatLastSession}
-                onHome={() => setCurrentView('home')}
+                onHome={() => navigate('home', -1)}
               />
             )}
 
@@ -287,29 +315,31 @@ function App() {
             {currentView === 'settings' && (
               <Settings settings={settings} onUpdate={setSettings} />
             )}
-          </motion.div>
+          </PageTransition>
         </AnimatePresence>
       </main>
 
       {showBottomNav && (
-        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 shadow-lg backdrop-blur">
-          <div className="mx-auto flex max-w-4xl justify-around px-2 py-2">
-            {[
-              { id: 'home' as const, label: '首页', icon: '⌂', active: homeTabActive },
-              { id: 'timer' as const, label: '番茄钟', icon: '🍅', active: currentView === 'timer' },
-              { id: 'achievements' as const, label: '成就', icon: '🏆', active: currentView === 'achievements' },
-              { id: 'settings' as const, label: '设置', icon: '⚙️', active: currentView === 'settings' },
-            ].map((item) => (
+        <nav
+          aria-label="主导航"
+          className="app-safe-bottom fixed bottom-0 left-0 right-0 z-40 border-t-2 border-line bg-surface shadow-[0_-4px_18px_var(--ui-shadow-color)]"
+        >
+          <div className="mx-auto flex max-w-4xl justify-around px-2 pt-2">
+            {navItems.map((item) => (
               <button
                 type="button"
                 key={item.id}
-                onClick={() => setCurrentView(item.id)}
-                className={`flex min-w-16 flex-col items-center gap-1 rounded-xl px-3 py-2 transition-colors ${
-                  item.active ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:text-gray-800'
+                onClick={() => navigate(item.id, item.id === 'home' ? -1 : 0)}
+                aria-current={item.active ? 'page' : undefined}
+                className={`relative flex min-h-14 min-w-[68px] flex-col items-center justify-center gap-1 rounded-2xl px-3 py-1.5 font-bold transition-colors duration-150 ${
+                  item.active ? 'bg-brand-soft text-brand-soft-ink' : 'text-muted hover:bg-surface-soft hover:text-ink'
                 }`}
               >
-                <span className="text-xl leading-none">{item.icon}</span>
-                <span className="text-xs font-medium">{item.label}</span>
+                <Icon name={item.icon} size={23} />
+                <span className="text-[11px]">{item.label}</span>
+                {item.active && (
+                  <span className="absolute -bottom-0.5 h-1 w-5 rounded-full bg-brand-strong" aria-hidden="true" />
+                )}
               </button>
             ))}
           </div>
