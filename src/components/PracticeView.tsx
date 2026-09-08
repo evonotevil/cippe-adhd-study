@@ -160,10 +160,22 @@ export function PracticeView({
       const items = [...current.items];
       const [skipped] = items.splice(index, 1);
       items.push({ ...skipped, skippedCount: skipped.skippedCount + 1 });
+
+      // 被跳过的题挪到队尾后，后面的题会顶上同一个下标。但如果跳的本来就是
+      // 最后一题，那个下标上站着的还是它自己 —— 得往后、再绕回队首找一道没做的，
+      // 否则「暂时跳过」在最后一题上是个死按钮。
+      let nextIndex = items.findIndex(
+        (item, position) => position >= index && item.key !== skipped.key && !item.submitted,
+      );
+      if (nextIndex < 0) {
+        nextIndex = items.findIndex((item) => item.key !== skipped.key && !item.submitted);
+      }
+      if (nextIndex < 0) nextIndex = Math.min(index, items.length - 1);
+
       return {
         ...current,
         items,
-        currentIndex: Math.min(index, items.length - 1),
+        currentIndex: nextIndex,
         elapsedSeconds: elapsedSecondsRef.current,
       };
     });

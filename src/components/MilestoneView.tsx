@@ -5,11 +5,12 @@ import { Pressable } from './ui/Pressable';
 
 interface MilestoneViewProps {
   session: PracticeSession;
+  reinforcementCount: number | null;
   onContinue: () => void;
   onFinish: () => void;
 }
 
-export function MilestoneView({ session, onContinue, onFinish }: MilestoneViewProps) {
+export function MilestoneView({ session, reinforcementCount, onContinue, onFinish }: MilestoneViewProps) {
   const correct = session.attempts.filter((attempt) => attempt.isCorrect).length;
   const accuracy = session.attempts.length > 0
     ? Math.round((correct / session.attempts.length) * 100)
@@ -30,7 +31,10 @@ export function MilestoneView({ session, onContinue, onFinish }: MilestoneViewPr
         {session.phase === 'new' ? '新题已经刷完' : '这一轮巩固完成'}
       </h1>
       <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-relaxed text-muted">
-        你已完成 {scope} 当前阶段的题目。可以趁记忆还热继续巩固，也可以先休息。
+        你已完成 {scope} 当前阶段的题目。
+        {reinforcementCount
+          ? `继续巩固会把这个范围的 ${reinforcementCount} 题再过一轮，错题排在最前面。`
+          : '可以趁记忆还热继续巩固，也可以先休息。'}
       </p>
 
       <div className="mt-7 flex items-center justify-center gap-8 border-y-2 border-line py-4">
@@ -53,7 +57,7 @@ export function MilestoneView({ session, onContinue, onFinish }: MilestoneViewPr
           onClick={onContinue}
           leading={<Icon name="refresh" size={21} />}
         >
-          继续巩固
+          继续巩固{reinforcementCount ? `（${reinforcementCount} 题）` : ''}
         </Pressable>
         <Pressable variant="neutral" size="lg" block onClick={onFinish}>
           结束并查看结果

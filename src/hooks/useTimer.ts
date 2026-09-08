@@ -13,6 +13,8 @@ interface TimerState {
   acknowledgedCompletionSequence: number;
   breakSequence: number;
   acknowledgedBreakSequence: number;
+  /** 上一个阶段实际结束的时刻。用来区分"刚刚响的"和"三天前就该响的"。 */
+  phaseEndedAt: number | null;
 }
 
 function toSeconds(minutes: number): number {
@@ -32,6 +34,7 @@ function createInitialState(duration: number): TimerState {
     acknowledgedCompletionSequence: 0,
     breakSequence: 0,
     acknowledgedBreakSequence: 0,
+    phaseEndedAt: null,
   };
 }
 
@@ -70,6 +73,7 @@ function readStoredState(duration: number, breakDuration: number): TimerState {
       acknowledgedBreakSequence: Number.isFinite(stored.acknowledgedBreakSequence)
         ? Math.max(0, Number(stored.acknowledgedBreakSequence))
         : 0,
+      phaseEndedAt: Number.isFinite(stored.phaseEndedAt) ? Number(stored.phaseEndedAt) : null,
     };
   } catch (error) {
     console.error('Error reading timer state:', error);
@@ -101,6 +105,7 @@ function persistenceSignature(state: TimerState): string {
     state.acknowledgedCompletionSequence,
     state.breakSequence,
     state.acknowledgedBreakSequence,
+    state.phaseEndedAt,
   ].join('|');
 }
 
@@ -127,6 +132,7 @@ function reconcileRunningState(
       deadline: null,
       phaseDuration,
       breakSequence: state.breakSequence + 1,
+      phaseEndedAt: state.deadline,
     };
   }
 
@@ -136,6 +142,7 @@ function reconcileRunningState(
     ...state,
     sessionsCompleted: state.sessionsCompleted + 1,
     completionSequence: state.completionSequence + 1,
+    phaseEndedAt: state.deadline,
   };
 
   if (now < breakDeadline) {

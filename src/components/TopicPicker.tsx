@@ -113,9 +113,9 @@ export function TopicPicker({ topics, onSelect, onBack }: TopicPickerProps) {
         >
           返回首页
         </Pressable>
-        <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">选择一个 Topic</h1>
+        <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">专题练习</h1>
         <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-muted">
-          每次专注一个主题，练习会优先安排未做题。
+          每次专注一个主题，练习会优先安排未做题。下面这个是按掌握情况推荐的，也可以自己挑。
         </p>
       </header>
 
@@ -138,13 +138,13 @@ export function TopicPicker({ topics, onSelect, onBack }: TopicPickerProps) {
       {otherTopics.length > 0 && (
         <details className="group rounded-[1.25rem] border-2 border-line bg-surface px-4 py-2 shadow-[0_3px_0_var(--ui-line-strong)]">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-1 font-black text-ink marker:content-none [&::-webkit-details-marker]:hidden">
-            <span>查看全部 Topic</span>
+            <span>其余 Topic</span>
             <span className="flex items-center gap-2 text-sm font-extrabold text-muted">
               {otherTopics.length} 个
               <Icon name="chevron-right" size={20} className="transition-transform duration-150 group-open:rotate-90" />
             </span>
           </summary>
-          <ul className="space-y-3 border-t-2 border-line py-4" aria-label="其他 CIPPE Topic">
+          <ul className="space-y-3 border-t-2 border-line py-4" aria-label="其余 CIPPE Topic">
             {otherTopics.map((topic) => (
               <li key={topic.topic}>
                 <TopicCard topic={topic} onSelect={onSelect} />

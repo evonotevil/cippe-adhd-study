@@ -19,6 +19,7 @@ import { useSound } from './hooks/useSound';
 import {
   addReinforcementRound,
   createPracticeSession,
+  getReinforcementCount,
   getTodayStats,
 } from './domain/practice';
 import type {
@@ -83,6 +84,9 @@ interface NavigationItem {
   active: boolean;
 }
 
+/** 阶段结束超过这个时间就不再弹提示，只默默记账。 */
+const ALERT_FRESHNESS_MS = 2 * 60 * 1000;
+
 const VIEW_TITLES: Record<View, string> = {
   home: '首页',
   topics: '专题练习',
@@ -133,7 +137,7 @@ function App() {
   const alertRef = useRef<HTMLDivElement>(null);
   const handledFocus = useRef(0);
   const handledBreak = useRef(0);
-  const { claimFocusCompletion, claimBreakCompletion, completionSequence, breakSequence } = timer;
+  const { claimFocusCompletion, claimBreakCompletion, completionSequence, breakSequence, phaseEndedAt } = timer;
 
   // 专注阶段走完：计一次番茄钟，弹提示，响一声。以前这里只有计数，
   // 人在答题页时对专注结束毫无察觉，连休息都在无声流走。
@@ -142,20 +146,24 @@ function App() {
     handledFocus.current = completionSequence;
     if (!claimFocusCompletion()) return;
     recordTomatoSession();
+    // 关着应用的那几天里番茄钟早就走完了，此刻再弹「休息 5 分钟」毫无意义。
+    // 计数照记，提示只留给刚刚发生的。读时钟属于副作用，放在 effect 里。
+    if (phaseEndedAt === null || Date.now() - phaseEndedAt > ALERT_FRESHNESS_MS) return;
     // 计时器到点是墙钟事件，不是能在渲染期算出来的值，只能在这里落状态。
     // eslint-disable-next-line react/set-state-in-effect
     setTimerAlert('focus');
     void playComplete();
-  }, [claimFocusCompletion, completionSequence, playComplete, recordTomatoSession]);
+  }, [claimFocusCompletion, completionSequence, phaseEndedAt, playComplete, recordTomatoSession]);
 
   useEffect(() => {
     if (breakSequence <= handledBreak.current) return;
     handledBreak.current = breakSequence;
     if (!claimBreakCompletion()) return;
+    if (phaseEndedAt === null || Date.now() - phaseEndedAt > ALERT_FRESHNESS_MS) return;
     // eslint-disable-next-line react/set-state-in-effect
     setTimerAlert('break');
     void playComplete();
-  }, [breakSequence, claimBreakCompletion, playComplete]);
+  }, [breakSequence, claimBreakCompletion, phaseEndedAt, playComplete]);
 
   // 横幅自己占位；把实测高度直接写成 CSS 变量，吸顶的页头据此下移，
   // 不然它会盖住答题页的进度条和「结束」。走 CSS 变量而不是 React state，
@@ -556,6 +564,9 @@ function App() {
               {currentView === 'milestone' && activeSession && (
                 <MilestoneView
                   session={activeSession}
+                  reinforcementCount={
+                    questions ? getReinforcementCount(questions, learningStates, activeSession.topic) : null
+                  }
                   onContinue={continueReinforcement}
                   onFinish={() => finishSession(activeSession)}
                 />

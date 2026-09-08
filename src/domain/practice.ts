@@ -214,6 +214,15 @@ function getReinforcementIds(
   return [...mistakes, ...remaining];
 }
 
+/** 「继续巩固」会往当前这组里追加多少题 —— 界面得先告诉人再让人点。 */
+export function getReinforcementCount(
+  questions: Question[],
+  states: Record<number, QuestionLearningState>,
+  topic: string | null,
+): number {
+  return getReinforcementIds(questions, states, topic).length;
+}
+
 export function createPracticeSession(
   questions: Question[],
   states: Record<number, QuestionLearningState>,
