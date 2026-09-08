@@ -5,7 +5,6 @@ import { ProgressBar } from './ui/ProgressBar';
 import { Icon, type IconName } from './ui/Icons';
 
 interface HomeProps {
-  totalQuestions: number;
   unseenCount: number;
   mistakeCount: number;
   todayAnswered: number;
@@ -70,7 +69,6 @@ function ModeRow({
 }
 
 export function Home({
-  totalQuestions,
   unseenCount,
   mistakeCount,
   todayAnswered,
@@ -86,40 +84,22 @@ export function Home({
   onResume,
 }: HomeProps) {
   const accuracy = todayAnswered > 0 ? Math.round((todayCorrect / todayAnswered) * 100) : 0;
-  const coveredCount = totalQuestions - unseenCount;
   const activeAnswered = activeSession?.mode === 'exam'
     ? activeSession.items.filter((item) => item.selectedAnswer).length
     : activeSession?.attempts.length ?? 0;
 
   return (
     <div className="space-y-6">
-      <section aria-labelledby="home-heading" className="space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 id="home-heading" className="text-3xl font-black tracking-[-0.025em] text-ink">
-              {isFirstRun ? '先完成 5 题，找到起点' : '今天选一个小目标'}
-            </h1>
-          </div>
-          <div className="rounded-2xl bg-warning-soft px-3 py-2 text-right text-warning-ink">
-            <p className="text-lg font-black tabular-nums">{todayAnswered}</p>
-            <p className="text-[11px] font-bold">今日题数</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <ProgressBar
-            value={coveredCount}
-            max={totalQuestions}
-            label={`题库覆盖 ${coveredCount} / ${totalQuestions}`}
-            className="flex-1"
-          />
-          <span className="shrink-0 text-xs font-extrabold tabular-nums text-muted">
-            {coveredCount}/{totalQuestions}
-          </span>
-        </div>
-
+      {/* Today's count and the question-bank bar live in the app header now, so
+          this block carries only what the header does not show. */}
+      <section aria-labelledby="home-heading" className="space-y-2">
+        <h1 id="home-heading" className="text-3xl font-black tracking-[-0.025em] text-ink">
+          {isFirstRun ? '先完成 5 题，找到起点' : '今天选一个小目标'}
+        </h1>
         <p className="text-sm font-semibold text-muted">
-          今日正确率 {accuracy}% · {mistakeCount > 0 ? `${mistakeCount} 道错题待巩固` : '错题已清空'}
+          {todayAnswered > 0
+            ? `今日正确率 ${accuracy}% · ${mistakeCount > 0 ? `${mistakeCount} 道错题待巩固` : '错题已清空'}`
+            : `还剩 ${unseenCount} 道未做${mistakeCount > 0 ? ` · ${mistakeCount} 道错题待巩固` : ''}`}
         </p>
       </section>
 

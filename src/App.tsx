@@ -317,21 +317,61 @@ function App() {
     >
       {showAppHeader && (
         <header className="app-safe-top sticky top-0 z-40 border-b-2 border-line bg-surface">
-          <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-            <button
-              type="button"
-              onClick={() => navigate('home', -1)}
-              aria-label="返回首页"
-              className="flex min-h-11 items-center gap-2 rounded-xl pr-2 font-black tracking-[-0.02em] text-ink"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-brand-ink shadow-[0_3px_0_var(--ui-brand-strong)]">
-                <Icon name="book" size={21} />
+          <div className="mx-auto max-w-4xl px-4 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('home', -1)}
+                aria-label="返回首页"
+                className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl pr-2 font-black tracking-[-0.02em] text-ink"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-brand-ink shadow-[0_3px_0_var(--ui-brand-strong)]">
+                  <Icon name="book" size={21} />
+                </span>
+                <span className="max-[359px]:hidden">CIPPE</span>
+              </button>
+
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  role="img"
+                  className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-warning-soft px-2 py-1.5 text-xs font-extrabold text-warning-ink"
+                  aria-label={
+                    stats.streakDays > 0
+                      ? `已连续学习 ${stats.streakDays} 天`
+                      : '还没有开始连续学习'
+                  }
+                >
+                  <Icon name="sparkle" size={15} aria-hidden="true" />
+                  <span className="tabular-nums" aria-hidden="true">{stats.streakDays} 天</span>
+                </span>
+                <span
+                  role="img"
+                  className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-brand-soft px-2 py-1.5 text-xs font-extrabold text-brand-soft-ink"
+                  aria-label={`今天已完成 ${todayStats.answered} 题`}
+                >
+                  <Icon name="check" size={15} aria-hidden="true" />
+                  <span className="tabular-nums" aria-hidden="true">今日 {todayStats.answered}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2 pb-2.5">
+              <div
+                className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-soft"
+                role="progressbar"
+                aria-valuenow={completedCount}
+                aria-valuemin={0}
+                aria-valuemax={QUESTION_COUNT}
+                aria-label={`题库进度 ${completedCount} / ${QUESTION_COUNT} 题`}
+              >
+                <div
+                  className="h-full rounded-full bg-brand-strong transition-[width] duration-500"
+                  style={{ width: `${Math.round((completedCount / QUESTION_COUNT) * 100)}%` }}
+                />
+              </div>
+              <span className="shrink-0 text-[11px] font-extrabold tabular-nums text-muted" aria-hidden="true">
+                {completedCount}/{QUESTION_COUNT}
               </span>
-              <span>CIPPE</span>
-            </button>
-            <div className="flex items-center gap-2 rounded-xl bg-surface-soft px-3 py-2 text-xs font-extrabold text-muted">
-              <Icon name="target" size={17} className="text-brand-strong" />
-              <span className="tabular-nums">题库 {completedCount}/{QUESTION_COUNT}</span>
             </div>
           </div>
         </header>
@@ -356,7 +396,6 @@ function App() {
             <PageTransition key={currentView} direction={transitionDirection}>
               {currentView === 'home' && (
                 <Home
-                  totalQuestions={QUESTION_COUNT}
                   unseenCount={unseenCount}
                   mistakeCount={mistakeIds.length}
                   todayAnswered={todayStats.answered}
@@ -424,7 +463,14 @@ function App() {
                 />
               )}
 
-              {currentView === 'achievements' && <Achievements stats={stats} />}
+              {currentView === 'achievements' && (
+                <Achievements
+                  stats={stats}
+                  learningStates={learningStates}
+                  topicProgress={topicProgress}
+                  progress={progress}
+                />
+              )}
 
               {currentView === 'settings' && (
                 <Settings settings={settings} onUpdate={setSettings} />

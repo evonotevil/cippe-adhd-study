@@ -122,6 +122,40 @@ export function getTodayStats(progress: UserProgress[]): { answered: number; cor
   return { answered, correct };
 }
 
+/** Longest run of consecutive correct answers across the whole answer log. */
+export function getLongestAnswerStreak(progress: UserProgress[]): number {
+  let current = 0;
+  let longest = 0;
+
+  for (const attempt of toChronological(progress)) {
+    if (attempt.isCorrect) {
+      current += 1;
+      if (current > longest) longest = current;
+    } else {
+      current = 0;
+    }
+  }
+
+  return longest;
+}
+
+/** Questions that were answered wrong at some point and are now held twice over. */
+export function getComebackCount(states: Record<number, QuestionLearningState>): number {
+  let count = 0;
+  for (const state of Object.values(states)) {
+    if (state.everWrong && state.consecutiveCorrect >= 2) count += 1;
+  }
+  return count;
+}
+
+export function getAttemptedCount(states: Record<number, QuestionLearningState>): number {
+  let count = 0;
+  for (const state of Object.values(states)) {
+    if (state.attempted) count += 1;
+  }
+  return count;
+}
+
 export function getTopicProgress(
   questions: Question[],
   progress: UserProgress[],
