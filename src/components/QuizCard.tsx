@@ -69,12 +69,9 @@ export function QuizCard({
   const parsed = parseQuestionText(question.question);
   // 短的引子直接顺着排；长材料才值得单独成块。
   const hasLongScenario = scenarioLength(parsed.scenario) >= 160;
-  const visibleOptions = showResult
-    ? question.options.filter((option) => {
-        const answer = option.charAt(0);
-        return answer === selectedAnswer || answer === question.correctAnswer;
-      })
-    : question.options;
+  // 四个选项始终都在。解析里会逐个点评（"C 混淆了…；D 遗漏了…"），
+  // 把没选中的错项藏起来会让那段分析无从对照。错项用 muted 弱化即可。
+  const visibleOptions = question.options;
 
   useEffect(() => {
     if (!showResult) return;
@@ -101,7 +98,9 @@ export function QuizCard({
     selected: 'border-info-shadow bg-info-soft text-info-ink shadow-[0_4px_0_var(--ui-info-shadow)]',
     correct: 'border-brand-shadow bg-brand-soft text-brand-soft-ink shadow-[0_4px_0_var(--ui-brand-shadow)]',
     wrong: 'border-danger-shadow bg-danger-soft text-danger-ink shadow-[0_4px_0_var(--ui-danger-shadow)]',
-    muted: 'border-line bg-surface-soft text-muted shadow-[0_3px_0_var(--ui-line)] opacity-70',
+    // 不用 opacity 压暗：整体透明度会把文字和底色一起拉向页面底色，实测只剩 3:1。
+    // 弱化交给 muted 墨色和更浅的边框即可。
+    muted: 'border-line bg-surface-soft text-muted shadow-[0_3px_0_var(--ui-line)]',
   };
 
   const badgeStyles: Record<OptionState, string> = {
