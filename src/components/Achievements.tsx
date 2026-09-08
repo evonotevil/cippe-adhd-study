@@ -45,30 +45,30 @@ const CATEGORIES: Array<{ id: Category; label: string; hint: string }> = [
 
 const ACHIEVEMENTS: Achievement[] = [
   // 题库进度
-  { id: 'first-try', title: '初次尝试', description: '完成第一道题', icon: 'target', tone: 'info', category: 'progress', target: 1, unit: '题', measure: (m) => m.attempted },
-  { id: 'attempted-25', title: '渐入佳境', description: '做过 25 道题', icon: 'bolt', tone: 'brand', category: 'progress', target: 25, unit: '题', measure: (m) => m.attempted },
-  { id: 'attempted-100', title: '百题斩', description: '做过 100 道题', icon: 'book', tone: 'info', category: 'progress', target: 100, unit: '题', measure: (m) => m.attempted },
-  { id: 'attempted-200', title: '过半有余', description: '做过 200 道题', icon: 'topics', tone: 'brand', category: 'progress', target: 200, unit: '题', measure: (m) => m.attempted },
-  { id: 'attempted-all', title: '题库通关', description: `${QUESTION_COUNT} 道题全部做过`, icon: 'trophy', tone: 'warning', category: 'progress', target: QUESTION_COUNT, unit: '题', measure: (m) => m.attempted },
+  { id: 'first-try', title: '初次尝试', description: '完成第一道题', icon: 'sprout', tone: 'info', category: 'progress', target: 1, unit: '题', measure: (m) => m.attempted },
+  { id: 'attempted-25', title: '渐入佳境', description: '做过 25 道题', icon: 'bars-rising', tone: 'brand', category: 'progress', target: 25, unit: '题', measure: (m) => m.attempted },
+  { id: 'attempted-100', title: '百题斩', description: '做过 100 道题', icon: 'pages', tone: 'info', category: 'progress', target: 100, unit: '题', measure: (m) => m.attempted },
+  { id: 'attempted-200', title: '过半有余', description: '做过 200 道题', icon: 'gauge', tone: 'brand', category: 'progress', target: 200, unit: '题', measure: (m) => m.attempted },
+  { id: 'attempted-all', title: '题库通关', description: `${QUESTION_COUNT} 道题全部做过`, icon: 'summit', tone: 'warning', category: 'progress', target: QUESTION_COUNT, unit: '题', measure: (m) => m.attempted },
 
   // Topic 精通
-  { id: 'topic-touch-all', title: '全域涉猎', description: '9 个 Topic 各做过至少 1 题', icon: 'topics', tone: 'info', category: 'mastery', target: 9, unit: '个主题', measure: (m) => m.topicsTouched },
-  { id: 'topic-first', title: '首个 Topic 通关', description: '把任意一个 Topic 全部做完', icon: 'check', tone: 'brand', category: 'mastery', target: 1, unit: '个主题', measure: (m) => m.topicsCompleted },
-  { id: 'topic-three', title: '三线并进', description: '完整做完 3 个 Topic', icon: 'sparkle', tone: 'brand', category: 'mastery', target: 3, unit: '个主题', measure: (m) => m.topicsCompleted },
-  { id: 'gdpr-100', title: 'GDPR 攻坚', description: 'GDPR 主题做过 100 题', icon: 'book', tone: 'warning', category: 'mastery', target: 100, unit: '题', measure: (m) => m.gdprAttempted },
+  { id: 'topic-touch-all', title: '全域涉猎', description: '9 个 Topic 各做过至少 1 题', icon: 'grid-nine', tone: 'info', category: 'mastery', target: 9, unit: '个主题', measure: (m) => m.topicsTouched },
+  { id: 'topic-first', title: '首个 Topic 通关', description: '把任意一个 Topic 全部做完', icon: 'square-check', tone: 'brand', category: 'mastery', target: 1, unit: '个主题', measure: (m) => m.topicsCompleted },
+  { id: 'topic-three', title: '三线并进', description: '完整做完 3 个 Topic', icon: 'panels', tone: 'brand', category: 'mastery', target: 3, unit: '个主题', measure: (m) => m.topicsCompleted },
+  { id: 'gdpr-100', title: 'GDPR 攻坚', description: 'GDPR 主题做过 100 题', icon: 'doc-lock', tone: 'warning', category: 'mastery', target: 100, unit: '题', measure: (m) => m.gdprAttempted },
 
   // 学习习惯
-  { id: 'streak-3', title: '三日不辍', description: '连续学习 3 天', icon: 'clock', tone: 'info', category: 'habit', target: 3, unit: '天', measure: (m) => m.streakDays },
-  { id: 'streak-7', title: '一周坚持', description: '连续学习 7 天', icon: 'sparkle', tone: 'warning', category: 'habit', target: 7, unit: '天', measure: (m) => m.streakDays },
-  { id: 'streak-30', title: '月度常客', description: '连续学习 30 天', icon: 'trophy', tone: 'warning', category: 'habit', target: 30, unit: '天', measure: (m) => m.streakDays },
-  { id: 'tomato-3', title: '番茄达人', description: '完成 3 个番茄钟', icon: 'timer', tone: 'danger', category: 'habit', target: 3, unit: '个', measure: (m) => m.tomatoSessions },
-  { id: 'tomato-25', title: '专注百分', description: '完成 25 个番茄钟', icon: 'timer', tone: 'danger', category: 'habit', target: 25, unit: '个', measure: (m) => m.tomatoSessions },
+  { id: 'streak-3', title: '三日不辍', description: '连续学习 3 天', icon: 'days', tone: 'info', category: 'habit', target: 3, unit: '天', measure: (m) => m.streakDays },
+  { id: 'streak-7', title: '一周坚持', description: '连续学习 7 天', icon: 'flame', tone: 'warning', category: 'habit', target: 7, unit: '天', measure: (m) => m.streakDays },
+  { id: 'streak-30', title: '月度常客', description: '连续学习 30 天', icon: 'calendar-check', tone: 'warning', category: 'habit', target: 30, unit: '天', measure: (m) => m.streakDays },
+  { id: 'tomato-3', title: '番茄达人', description: '完成 3 个番茄钟', icon: 'tomato', tone: 'danger', category: 'habit', target: 3, unit: '个', measure: (m) => m.tomatoSessions },
+  { id: 'tomato-25', title: '专注百分', description: '完成 25 个番茄钟', icon: 'hourglass', tone: 'danger', category: 'habit', target: 25, unit: '个', measure: (m) => m.tomatoSessions },
 
   // 挑战
   { id: 'streak-correct-5', title: '五连正解', description: '连续答对 5 题', icon: 'bolt', tone: 'brand', category: 'challenge', target: 5, unit: '连对', measure: (m) => m.longestStreak },
-  { id: 'streak-correct-10', title: '十全十美', description: '连续答对 10 题', icon: 'sparkle', tone: 'warning', category: 'challenge', target: 10, unit: '连对', measure: (m) => m.longestStreak },
-  { id: 'comeback-10', title: '错题翻盘', description: '10 道错题重新连对两次', icon: 'refresh', tone: 'info', category: 'challenge', target: 10, unit: '题', measure: (m) => m.comebacks },
-  { id: 'mistake-cleared', title: '错题清零', description: '把错题本清空一次', icon: 'check', tone: 'brand', category: 'challenge', target: 1, unit: '次', measure: (m) => m.mistakeCleared },
+  { id: 'streak-correct-10', title: '十全十美', description: '连续答对 10 题', icon: 'medal', tone: 'warning', category: 'challenge', target: 10, unit: '连对', measure: (m) => m.longestStreak },
+  { id: 'comeback-10', title: '错题翻盘', description: '10 道错题重新连对两次', icon: 'comeback', tone: 'info', category: 'challenge', target: 10, unit: '题', measure: (m) => m.comebacks },
+  { id: 'mistake-cleared', title: '错题清零', description: '把错题本清空一次', icon: 'archive-check', tone: 'brand', category: 'challenge', target: 1, unit: '次', measure: (m) => m.mistakeCleared },
 ];
 
 const unlockedTone = {

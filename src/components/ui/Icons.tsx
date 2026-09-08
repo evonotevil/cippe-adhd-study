@@ -31,7 +31,30 @@ export type IconName =
   | 'lock'
   | 'unlock'
   | 'pause'
-  | 'rotate';
+  | 'rotate'
+  // 品牌标记
+  | 'logo'
+  // 成就：题库进度
+  | 'sprout'
+  | 'bars-rising'
+  | 'pages'
+  | 'gauge'
+  | 'summit'
+  // 成就：Topic 精通
+  | 'grid-nine'
+  | 'square-check'
+  | 'panels'
+  | 'doc-lock'
+  // 成就：学习习惯
+  | 'days'
+  | 'flame'
+  | 'calendar-check'
+  | 'tomato'
+  | 'hourglass'
+  // 成就：挑战
+  | 'medal'
+  | 'comeback'
+  | 'archive-check';
 
 interface IconProps extends SVGProps<SVGSVGElement> {
   name: IconName;
@@ -85,6 +108,34 @@ export function Icon({ name, size = 24, ...props }: IconProps) {
     unlock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 7.5-2" /></>,
     pause: <><path d="M9 5v14" /><path d="M15 5v14" /></>,
     rotate: <><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6" /><path d="M4 4v4.6h4.6" /></>,
+
+    // 品牌：翻开的书 + 对勾，学习与答对
+    logo: <><path d="M12 2.6 4.3 5.5v6.1c0 4.4 3.2 7.8 7.7 9.8 4.5-2 7.7-5.4 7.7-9.8V5.5L12 2.6Z" /><path d="M7.7 8.5c1.7 0 3.2.45 4.3 1.35 1.1-.9 2.6-1.35 4.3-1.35v5.7c-1.7 0-3.2.45-4.3 1.35-1.1-.9-2.6-1.35-4.3-1.35V8.5Z" /><path d="M12 9.85v5.7" /></>,
+
+    // 题库进度
+    sprout: <><path d="M12 21v-7.5" /><path d="M12 13.5c-3.6 0-6.2-2.3-6.2-5.7 3.6 0 6.2 2.3 6.2 5.7Z" /><path d="M12 13.5c0-4 2.8-6.7 6.2-6.7 0 4-2.8 6.7-6.2 6.7Z" /></>,
+    'bars-rising': <><path d="M3.5 20.5h17" /><path d="M6.5 20.5V16" /><path d="M12 20.5v-8.5" /><path d="M17.5 20.5V7" /></>,
+    pages: <><path d="M12 3.2 3.8 7.3 12 11.4l8.2-4.1L12 3.2Z" /><path d="m3.8 12 8.2 4.1 8.2-4.1" /><path d="m3.8 16.7 8.2 4.1 8.2-4.1" /></>,
+    gauge: <><circle cx="12" cy="12" r="8.5" opacity="0.35" /><path d="M12 3.5A8.5 8.5 0 1 1 4.64 16.25" strokeWidth="3.6" /></>,
+    summit: <><path d="M2.5 20.5h19" /><path d="m5 20.5 6.2-10.5 3.4 5.2 2.6-3.4 4.3 8.7" /><path d="M11.2 10V3.5l4.3 1.7-4.3 1.8" /></>,
+
+    // Topic 精通
+    'grid-nine': <><circle cx="6" cy="6" r="1.5" /><circle cx="12" cy="6" r="1.5" /><circle cx="18" cy="6" r="1.5" /><circle cx="6" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="18" cy="12" r="1.5" /><circle cx="6" cy="18" r="1.5" /><circle cx="12" cy="18" r="1.5" /><circle cx="18" cy="18" r="1.5" /></>,
+    'square-check': <><rect x="3.5" y="3.5" width="17" height="17" rx="3.5" /><path d="m8.2 12 2.6 2.6 5-5.4" /></>,
+    panels: <><rect x="2.5" y="7.5" width="5.5" height="9" rx="1.8" /><rect x="9.2" y="7.5" width="5.5" height="9" rx="1.8" /><rect x="15.9" y="7.5" width="5.5" height="9" rx="1.8" /></>,
+    'doc-lock': <><path d="M4.8 3.2h14.4v17.6H4.8z" /><rect x="8.8" y="11.4" width="6.4" height="5.4" rx="1.4" /><path d="M10.2 11.4v-1.6a1.8 1.8 0 0 1 3.6 0v1.6" /></>,
+
+    // 学习习惯
+    days: <><circle cx="5" cy="12" r="2.2" /><circle cx="12" cy="12" r="2.2" /><circle cx="19" cy="12" r="2.2" /><path d="M7.4 12h2.2M14.4 12h2.2" /></>,
+    flame: <><path d="M12 21c3.5 0 6.2-2.5 6.2-5.9 0-4.6-4.4-6-3.4-11.6-3.1 1.6-4.9 4.5-4.9 6.9 0 0-1.5-1-1.5-3.2C6.5 9 5.8 12 5.8 15.1 5.8 18.5 8.5 21 12 21Z" /></>,
+    'calendar-check': <><rect x="3.5" y="5" width="17" height="16" rx="2.8" /><path d="M3.5 10h17M8 2.8v4M16 2.8v4" /><path d="m9.2 15.4 2.2 2.2 4.4-4.8" /></>,
+    tomato: <><path d="M12 7.2c-4.3 0-7.4 3-7.4 6.9 0 3.7 3.1 6.7 7.4 6.7s7.4-3 7.4-6.7c0-3.9-3.1-6.9-7.4-6.9Z" /><path d="M12 7.2V5" /><path d="M12 5C10.6 3.4 9 3.3 7.4 3.8 7.9 5.4 9.1 6.4 10.7 6.4M12 5c1.4-1.6 3-1.7 4.6-1.2-.5 1.6-1.7 2.6-3.3 2.6" /></>,
+    hourglass: <><path d="M6.5 3h11M6.5 21h11" /><path d="M7.6 3v3.2c0 2.3 4.4 3.6 4.4 5.8s-4.4 3.5-4.4 5.8V21" /><path d="M16.4 3v3.2c0 2.3-4.4 3.6-4.4 5.8s4.4 3.5 4.4 5.8V21" /></>,
+
+    // 挑战
+    medal: <><circle cx="12" cy="8.8" r="5.8" /><path d="m9.6 8.8 1.8 1.8 3.4-3.7" /><path d="m7.8 13.9-1.4 7.3 5.6-3 5.6 3-1.4-7.3" /></>,
+    comeback: <><path d="M20.4 12a8.4 8.4 0 1 1-2.6-6.1" /><path d="M18.6 2.6v3.6H15" /><path d="m8.6 12 2.4 2.4 4.4-4.8" /></>,
+    'archive-check': <><path d="M4 8.5h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-10Z" /><path d="M2.8 3.8h18.4v4.7H2.8z" /><path d="m9 14.2 2.2 2.2 4.2-4.6" /></>,
   };
 
   return <svg {...common}>{paths[name]}</svg>;
