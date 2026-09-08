@@ -124,6 +124,15 @@ function isImportData(value: unknown): value is ImportData {
   return validProgress && validStats && validSettings && validActiveSession && validRandomSettings;
 }
 
+function readProgressCount(): number {
+  try {
+    const raw = JSON.parse(localStorage.getItem('cippe-progress') || '[]');
+    return Array.isArray(raw) ? raw.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function replaceLocalData(entries: Array<[string, unknown]>): void {
   const previousValues = entries.map(([key]) => [key, localStorage.getItem(key)] as const);
   try {
@@ -137,12 +146,82 @@ function replaceLocalData(entries: Array<[string, unknown]>): void {
   }
 }
 
+interface DurationFieldProps {
+  id: string;
+  label: string;
+  value: number;
+  presets: number[];
+  min: number;
+  max: number;
+  step: number;
+  tone: 'danger' | 'brand';
+  onChange: (value: number) => void;
+}
+
+const durationTone = {
+  danger: {
+    badge: 'bg-danger-soft text-danger-ink',
+    active: 'border-danger-shadow bg-danger-soft text-danger-ink',
+    accent: 'accent-[var(--ui-danger)]',
+  },
+  brand: {
+    badge: 'bg-brand-soft text-brand-soft-ink',
+    active: 'border-brand-shadow bg-brand-soft text-brand-soft-ink',
+    accent: 'accent-[var(--ui-brand-strong)]',
+  },
+};
+
+/**
+ * Presets carry the common choices; the slider stays for anything in between.
+ * The label is not a wrapper because the preset buttons live inside the card —
+ * nested in a <label>, tapping one would also drive the range input.
+ */
+function DurationField({ id, label, value, presets, min, max, step, tone, onChange }: DurationFieldProps) {
+  const styles = durationTone[tone];
+
+  return (
+    <div className="rounded-[1.25rem] border-2 border-line bg-surface p-4 shadow-[0_3px_0_var(--ui-line-strong)]">
+      <div className="flex items-center justify-between gap-3 text-sm font-extrabold text-ink">
+        <label htmlFor={id}>{label}</label>
+        <span className={`rounded-lg px-2.5 py-1 tabular-nums ${styles.badge}`}>{value} 分钟</span>
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        {presets.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            aria-pressed={value === preset}
+            onClick={() => onChange(preset)}
+            className={`min-h-11 flex-1 rounded-xl border-2 text-xs font-extrabold tabular-nums transition-colors ${
+              value === preset ? styles.active : 'border-line bg-surface-soft text-muted hover:text-ink'
+            }`}
+          >
+            {preset} 分钟
+          </button>
+        ))}
+      </div>
+
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className={`mt-2 h-11 w-full cursor-pointer ${styles.accent}`}
+      />
+    </div>
+  );
+}
+
 export function Settings({ settings, onUpdate }: SettingsProps) {
   const [localSettings, setLocalSettings] = useState(settings);
   const { exportToFile, importFromFile } = useDataTransfer();
   const { playCorrect } = useSound(localSettings.soundEnabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importMessage, setImportMessage] = useState<{ text: string; tone: 'error' | 'success' | 'info' } | null>(null);
 
   const handleChange = <K extends keyof StudySettings>(key: K, value: StudySettings[K]) => {
     const updated = { ...localSettings, [key]: value };
@@ -173,7 +252,23 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
     try {
       const data: unknown = await importFromFile(file);
       if (!isImportData(data)) {
-        setImportMessage('文件内容不完整或格式不受支持。请重新选择由本应用导出的 JSON 备份。');
+        setImportMessage({ text: '文件内容不完整或格式不受支持。请重新选择由本应用导出的 JSON 备份。', tone: 'error' });
+        return;
+      }
+
+      // Replacing the answer log is the only irreversible action in the app, and
+      // the export button sits right next to this one. Say what will be lost.
+      flushPendingWrites();
+      const currentCount = readProgressCount();
+      const incomingCount = data.progress.length;
+      const confirmed = window.confirm(
+        `导入会替换这台设备上的全部学习数据，且无法撤销。\n\n`
+        + `当前：${currentCount} 条答题记录\n`
+        + `导入：${incomingCount} 条答题记录\n\n`
+        + `确定继续吗？`,
+      );
+      if (!confirmed) {
+        setImportMessage({ text: '已取消导入，现有数据没有任何改动。', tone: 'info' });
         return;
       }
 
@@ -188,14 +283,13 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
       if (data.randomSettings !== undefined) {
         entries.push(['cippe-random-settings', data.randomSettings]);
       }
-      // Drain queued writes first so none of them can land on top of the
-      // imported data between here and the reload.
-      flushPendingWrites();
       replaceLocalData(entries);
       onUpdate(data.settings);
-      window.location.reload();
+      // Let the confirmation land before the reload wipes the screen.
+      setImportMessage({ text: `导入成功，已恢复 ${incomingCount} 条答题记录。正在刷新…`, tone: 'success' });
+      window.setTimeout(() => window.location.reload(), 1200);
     } catch {
-      setImportMessage('导入失败，现有学习数据没有被替换。请检查文件后重试。');
+      setImportMessage({ text: '导入失败，现有学习数据没有被替换。请检查文件后重试。', tone: 'error' });
     } finally {
       event.target.value = '';
     }
@@ -210,37 +304,29 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
 
       <section className="space-y-5" aria-labelledby="focus-settings">
         <h2 id="focus-settings" className="text-lg font-black text-ink">专注节奏</h2>
-        <label className="block rounded-[1.25rem] border-2 border-line bg-surface p-4 shadow-[0_3px_0_var(--ui-line-strong)]">
-          <span className="flex items-center justify-between gap-3 text-sm font-extrabold text-ink">
-            <span>番茄钟时长</span>
-            <span className="rounded-lg bg-danger-soft px-2.5 py-1 text-danger-ink">{localSettings.tomatoDuration} 分钟</span>
-          </span>
-          <input
-            type="range"
-            min="5"
-            max="60"
-            step="5"
-            value={localSettings.tomatoDuration}
-            onChange={(event) => handleChange('tomatoDuration', Number(event.target.value))}
-            className="mt-1 h-11 w-full cursor-pointer accent-[var(--ui-danger)]"
-          />
-        </label>
+        <DurationField
+          id="tomato-duration"
+          label="番茄钟时长"
+          value={localSettings.tomatoDuration}
+          presets={[15, 25, 45]}
+          min={5}
+          max={60}
+          step={5}
+          tone="danger"
+          onChange={(value) => handleChange('tomatoDuration', value)}
+        />
 
-        <label className="block rounded-[1.25rem] border-2 border-line bg-surface p-4 shadow-[0_3px_0_var(--ui-line-strong)]">
-          <span className="flex items-center justify-between gap-3 text-sm font-extrabold text-ink">
-            <span>休息时长</span>
-            <span className="rounded-lg bg-brand-soft px-2.5 py-1 text-brand-soft-ink">{localSettings.breakDuration} 分钟</span>
-          </span>
-          <input
-            type="range"
-            min="1"
-            max="30"
-            step="1"
-            value={localSettings.breakDuration}
-            onChange={(event) => handleChange('breakDuration', Number(event.target.value))}
-            className="mt-1 h-11 w-full cursor-pointer accent-[var(--ui-brand-strong)]"
-          />
-        </label>
+        <DurationField
+          id="break-duration"
+          label="休息时长"
+          value={localSettings.breakDuration}
+          presets={[5, 10]}
+          min={5}
+          max={30}
+          step={5}
+          tone="brand"
+          onChange={(value) => handleChange('breakDuration', value)}
+        />
       </section>
 
       <div className="h-0.5 bg-line" aria-hidden="true" />
@@ -367,7 +453,19 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
         </div>
 
         <div aria-live="polite" className="text-center text-sm font-bold">
-          {importMessage && <p className="text-danger-accent">{importMessage}</p>}
+          {importMessage && (
+            <p
+              className={
+                importMessage.tone === 'error'
+                  ? 'text-danger-accent'
+                  : importMessage.tone === 'success'
+                    ? 'text-brand-soft-ink'
+                    : 'text-muted'
+              }
+            >
+              {importMessage.text}
+            </p>
+          )}
         </div>
       </section>
     </div>
