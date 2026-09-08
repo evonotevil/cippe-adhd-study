@@ -351,6 +351,7 @@ function App() {
     navigate('practice', 1);
   }, [ensureQuestionBank, navigate]);
 
+  const isFirstRun = stats.totalAnswered === 0;
   const showAppHeader = currentView !== 'practice';
   const showBottomNav = !['practice', 'milestone', 'result'].includes(currentView);
   const homeTabActive = ['home', 'topics', 'random'].includes(currentView);
@@ -432,6 +433,11 @@ function App() {
                 <span className="max-[359px]:hidden">CIPPE</span>
               </button>
 
+              {isFirstRun ? (
+                <span className="whitespace-nowrap rounded-lg bg-brand-soft px-2.5 py-1.5 text-xs font-extrabold text-brand-soft-ink">
+                  从这里开始
+                </span>
+              ) : (
               <div className="flex min-w-0 items-center gap-1.5">
                 <span
                   role="img"
@@ -454,9 +460,10 @@ function App() {
                   <span className="tabular-nums" aria-hidden="true">今日 {todayStats.answered}</span>
                 </span>
               </div>
+              )}
             </div>
 
-            <div className="mt-2 flex items-center gap-2 pb-2.5">
+            <div className={`flex items-center gap-2 pb-2.5 ${isFirstRun ? 'hidden' : 'mt-2'}`}>
               <div
                 className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-soft"
                 role="progressbar"
@@ -502,7 +509,7 @@ function App() {
                   todayAnswered={todayStats.answered}
                   todayCorrect={todayStats.correct}
                   topicCount={topicProgress.length}
-                  isFirstRun={stats.totalAnswered === 0}
+                  isFirstRun={isFirstRun}
                   isStarting={isLoadingQuestions}
                   activeSession={activeSession}
                   onStartRecommended={startRecommended}

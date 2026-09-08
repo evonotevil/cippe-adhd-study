@@ -1,6 +1,7 @@
 import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { useEffect, useRef } from 'react';
 import type { PracticeMode, Question } from '../types';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useSound } from '../hooks/useSound';
 import { parseQuestionText, scenarioLength, splitOption } from '../utils/questionText';
 import { Icon } from './ui/Icons';
@@ -18,6 +19,7 @@ interface QuizCardProps {
   onSubmit: () => void;
   onSkip: () => void;
   onNext: () => void;
+  onPrevious?: () => void;
 }
 
 type OptionState = 'idle' | 'selected' | 'correct' | 'wrong' | 'muted';
@@ -60,13 +62,18 @@ export function QuizCard({
   onSubmit,
   onSkip,
   onNext,
+  onPrevious,
 }: QuizCardProps) {
   const reduceMotion = useReducedMotion();
   const nextActionRef = useRef<HTMLDivElement>(null);
   const { playCorrect, playWrong } = useSound(soundEnabled);
+  // 「连对两次才移出错题本」是这个 App 的核心机制，但界面从未解释过。
+  // 第一次答错时讲一遍，之后不再打扰。
+  const [ruleExplained, setRuleExplained] = useLocalStorage('cippe-mistake-rule-seen', false);
   const isCorrect = selectedAnswer === question.correctAnswer;
   const explanation = parseExplanation(question.explanation);
   const parsed = parseQuestionText(question.question);
+  const showRuleHint = showResult && !isCorrect && !ruleExplained;
   // 短的引子直接顺着排；长材料才值得单独成块。
   const hasLongScenario = scenarioLength(parsed.scenario) >= 160;
   // 四个选项始终都在。解析里会逐个点评（"C 混淆了…；D 遗漏了…"），
@@ -116,6 +123,11 @@ export function QuizCard({
     if (isCorrect) playCorrect(correctStreak + 1);
     else playWrong();
     onSubmit();
+  };
+
+  const handleAdvance = () => {
+    if (showRuleHint) setRuleExplained(true);
+    onNext();
   };
 
   return (
@@ -232,6 +244,12 @@ export function QuizCard({
                   </p>
                 </div>
               </div>
+              {!isCorrect && showRuleHint && (
+                <p className="mt-3 flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2.5 text-sm font-semibold leading-relaxed text-info-ink">
+                  <Icon name="refresh" size={17} className="mt-0.5 shrink-0" />
+                  <span>这道题已进入错题本。之后<b className="font-black">连续答对两次</b>，它才会自动移出 —— 一次蒙对不算掌握。</span>
+                </p>
+              )}
               {explanation.memoryCue && (
                 <p className="mt-3 max-w-[68ch] break-words rounded-xl bg-surface-soft px-3 py-2 text-sm font-medium leading-[1.75] text-ink">
                   <span className="font-extrabold">知识点：</span>
@@ -239,12 +257,23 @@ export function QuizCard({
                 </p>
               )}
             </div>
-            <div ref={nextActionRef} className="relative z-10 mt-5 scroll-mb-4">
+            <div ref={nextActionRef} className="relative z-10 mt-5 flex gap-3 scroll-mb-4">
+              {onPrevious && (
+                <Pressable
+                  variant="neutral"
+                  size="lg"
+                  onClick={onPrevious}
+                  aria-label="上一题"
+                  className="shrink-0 px-4"
+                >
+                  <Icon name="arrow-left" size={20} />
+                </Pressable>
+              )}
               <Pressable
                 variant="primary"
                 size="lg"
                 block
-                onClick={onNext}
+                onClick={handleAdvance}
                 trailing={<Icon name="arrow-right" size={20} />}
               >
                 下一题

@@ -317,14 +317,15 @@ export function PracticeView({
       <header className="app-sticky-top sticky z-30 -mx-4 -mt-3 border-b-2 border-line bg-app px-4 pb-3 pt-3">
         <div className="mx-auto max-w-2xl">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
+            <Pressable
+              variant="ghost"
+              size="sm"
               onClick={handlePause}
               aria-label="保存并返回首页"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface-soft hover:text-ink"
+              className="shrink-0 px-2.5"
             >
               <Icon name="close" size={23} />
-            </button>
+            </Pressable>
             <ProgressBar
               value={progressValue}
               max={session.items.length}
@@ -383,6 +384,12 @@ export function PracticeView({
             onSubmit={handleStudySubmit}
             onSkip={handleSkip}
             onNext={handleNext}
+            onPrevious={
+              // 学习模式原本提交后就回不去了，想重看上一题的解析只能重开一组。
+              session.mode === 'study' && session.currentIndex > 0
+                ? () => moveToIndex(session.currentIndex - 1)
+                : undefined
+            }
           />
         </m.div>
       </AnimatePresence>

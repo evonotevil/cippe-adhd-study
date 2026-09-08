@@ -1,7 +1,7 @@
 import type { PracticeSession } from '../types';
 import { formatTime } from '../utils/helpers';
 import { getLongestCorrectStreak } from '../utils/streak';
-import { Celebration, ScoreRing } from './ui/Celebration';
+import { Celebration } from './ui/Celebration';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
 
@@ -40,10 +40,13 @@ export function ResultView({
 
   return (
     <div className="mx-auto max-w-xl py-4 text-center">
+      {/* 一组练习的最后一屏决定你对整段学习的记忆。这里放"完成了多少"，
+          正确率退到下面的统计格 —— 它是信息，不该是这一屏的主角。 */}
       <div className="relative mx-auto w-fit">
         {accuracy >= 75 && <Celebration />}
-        <div className="relative z-10 rounded-full bg-surface p-2 shadow-[0_6px_20px_var(--ui-shadow-color)]">
-          <ScoreRing value={accuracy} />
+        <div className="relative z-10 flex h-32 w-32 flex-col items-center justify-center rounded-full border-2 border-brand-shadow bg-brand-soft text-brand-soft-ink shadow-[0_6px_20px_var(--ui-shadow-color)]">
+          <span className="text-5xl font-black tabular-nums leading-none">{denominator}</span>
+          <span className="mt-1.5 text-xs font-extrabold">题完成</span>
         </div>
       </div>
 
@@ -52,8 +55,8 @@ export function ResultView({
 
       <section aria-label="练习结果" className="mt-7 grid grid-cols-2 overflow-hidden rounded-[1.25rem] border-2 border-line bg-surface">
         <div className="border-b-2 border-r-2 border-line p-4">
-          <p className="text-xl font-black tabular-nums text-ink">{denominator}</p>
-          <p className="mt-1 text-xs font-bold text-muted">答题数</p>
+          <p className="text-xl font-black tabular-nums text-ink">{wrongQuestionIds.length}</p>
+          <p className="mt-1 text-xs font-bold text-muted">本次错题</p>
         </div>
         <div className="border-b-2 border-line p-4">
           <p className="text-xl font-black tabular-nums text-brand-strong">{accuracy}%</p>
@@ -84,7 +87,7 @@ export function ResultView({
       <div className="mt-7 space-y-3">
         {wrongQuestionIds.length > 0 && (
           <Pressable
-            variant="danger"
+            variant="neutral"
             size="lg"
             block
             onClick={() => onReviewMistakes(wrongQuestionIds)}

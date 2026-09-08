@@ -46,7 +46,6 @@ interface TopicCardProps {
 }
 
 function TopicCard({ topic, recommended = false, onSelect }: TopicCardProps) {
-  const completion = topic.total > 0 ? Math.round((topic.completed / topic.total) * 100) : 0;
   const accuracy = getAccuracy(topic);
   const completed = topic.completed === topic.total && topic.total > 0;
   const started = topic.completed > 0;
@@ -88,7 +87,8 @@ function TopicCard({ topic, recommended = false, onSelect }: TopicCardProps) {
           className="mt-2 h-2.5"
         />
         <span className="mt-2 flex items-center justify-between gap-3 text-xs font-bold text-muted">
-          <span>{completed ? '已完成一轮' : started ? `已完成 ${completion}%` : '尚未开始'}</span>
+          {/* 数量已经由右上角的 x/y 和进度条表达，这里只补它们说不了的：正确率。 */}
+          <span>{completed ? '已完成一轮' : started ? '进行中' : '尚未开始'}</span>
           <span>{accuracy === null ? '开始学习' : `正确率 ${accuracy}%`}</span>
         </span>
       </span>

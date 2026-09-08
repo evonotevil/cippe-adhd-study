@@ -149,7 +149,7 @@ export function Home({
             </span>
             <span className="mt-1 block text-sm font-bold leading-snug opacity-80">
               {isFirstRun
-                ? '约 4 分钟 · 每题立即反馈，答完看到掌握情况'
+                ? '约 4 分钟 · 每题都有即时反馈'
                 : unseenCount > 0
                   ? '约 4 分钟 · 优先学习未做题'
                   : '约 4 分钟 · 回顾较久未练的题'}
@@ -164,8 +164,14 @@ export function Home({
           <ModeRow
             icon="refresh"
             title="错题复习"
-            description={mistakeCount > 0 ? '连续答对两次，就算真正掌握' : '暂无待复习错题，继续保持'}
-            detail={mistakeCount > 0 ? `${mistakeCount} 题` : '已清空'}
+            description={
+              mistakeCount > 0
+                ? '连续答对两次，就算真正掌握'
+                : isFirstRun
+                  ? '做几题之后，答错的会自动收进来'
+                  : '暂无待复习错题，继续保持'
+            }
+            detail={mistakeCount > 0 ? `${mistakeCount} 题` : isFirstRun ? '还没有' : '已清空'}
             tone="danger"
             disabled={mistakeCount === 0}
             onClick={onStartMistakes}
