@@ -265,7 +265,7 @@ export function PracticeView({
           >
             返回答题
           </Pressable>
-          <p className="text-sm font-extrabold text-info">考试模式</p>
+          <p className="text-sm font-extrabold text-info-accent">考试模式</p>
           <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">交卷前检查</h1>
           <p className="mt-2 text-sm font-semibold text-muted">
             已答 {answeredCount}/{session.items.length} · 已标记 {flaggedCount} · 用时 {formatTime(elapsedSeconds)}
@@ -291,7 +291,7 @@ export function PracticeView({
               >
                 {index + 1}
                 {item.flagged && (
-                  <span className="absolute -right-1 -top-2 rounded-full bg-warning p-0.5 text-warning-ink" aria-hidden="true">
+                  <span className="absolute -right-1 -top-2 rounded-full bg-warning p-0.5 text-warning-solid-ink" aria-hidden="true">
                     <Icon name="flag" size={13} />
                   </span>
                 )}
@@ -335,7 +335,7 @@ export function PracticeView({
             <button
               type="button"
               onClick={handleEnd}
-              className="min-h-11 shrink-0 rounded-xl px-2 text-xs font-extrabold text-danger hover:bg-danger-soft"
+              className="min-h-11 shrink-0 rounded-xl px-2 text-xs font-extrabold text-danger-accent hover:bg-danger-soft"
             >
               {session.mode === 'exam' ? '交卷' : '结束'}
             </button>

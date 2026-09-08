@@ -30,7 +30,12 @@
   --ui-warning: oklch(0.79 0.15 78);
   --ui-warning-shadow: oklch(0.62 0.13 68);
   --ui-warning-soft: oklch(0.95 0.055 82);
+  /* Ink for warning-soft surfaces and for warning text on the page background.
+     Flips with the theme, because those surfaces flip with the theme. */
   --ui-warning-ink: oklch(0.33 0.085 62);
+  /* Ink for the solid --ui-warning fill. That fill is light in every theme, so
+     this ink stays dark in every theme and is never overridden below. */
+  --ui-warning-solid-ink: oklch(0.33 0.085 62);
 
   --ui-danger: oklch(0.58 0.2 24);
   --ui-danger-shadow: oklch(0.44 0.17 23);
@@ -39,6 +44,12 @@
 
   --ui-shadow-color: oklch(0.28 0.03 250 / 0.1);
   --ui-focus: oklch(0.45 0.17 250);
+
+  /* Accent text on the page or card background. --ui-info and --ui-danger are
+     solid-fill colors carrying white ink; a single value cannot clear 4.5:1
+     against both white and a dark background, so text gets its own token. */
+  --ui-info-accent: oklch(0.52 0.18 250);
+  --ui-danger-accent: oklch(0.55 0.2 24);
 }
 
 [data-theme="dark"] {
@@ -79,6 +90,9 @@
 
   --ui-shadow-color: oklch(0.05 0.01 145 / 0.35);
   --ui-focus: oklch(0.78 0.14 245);
+
+  --ui-info-accent: oklch(0.62 0.18 250);
+  --ui-danger-accent: oklch(0.65 0.2 24);
 }
 
 [data-theme="eye-care"] {
@@ -127,6 +141,9 @@
   --color-warning-shadow: var(--ui-warning-shadow);
   --color-warning-soft: var(--ui-warning-soft);
   --color-warning-ink: var(--ui-warning-ink);
+  --color-warning-solid-ink: var(--ui-warning-solid-ink);
+  --color-info-accent: var(--ui-info-accent);
+  --color-danger-accent: var(--ui-danger-accent);
   --color-danger: var(--ui-danger);
   --color-danger-shadow: var(--ui-danger-shadow);
   --color-danger-soft: var(--ui-danger-soft);
@@ -257,7 +274,7 @@ p {
   --press-fill: var(--ui-warning);
   --press-border: var(--ui-warning-shadow);
   --press-shadow: var(--ui-warning-shadow);
-  --press-ink: var(--ui-warning-ink);
+  --press-ink: var(--ui-warning-solid-ink);
 }
 
 .pressable--neutral {

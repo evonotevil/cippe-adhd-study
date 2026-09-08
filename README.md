@@ -36,15 +36,11 @@ npm run lint      # 代码检查
 
 ## 部署
 
-线上页面由 `gh-pages` 分支托管（GitHub Pages，legacy 模式，从 `dist/` 生成）。
+推送到 `main` 即自动发布，无需手动构建。
 
-发布流程：
-
-```bash
-npm run build
-git subtree split --prefix dist -b gh-pages-deploy
-git push origin gh-pages-deploy:gh-pages
-```
+`.github/workflows/deploy.yml` 会在每次推送时执行 `npm ci && npm run build`，并把
+`dist/` 作为 GitHub Pages artifact 发布（Pages 的 Source 设为 GitHub Actions）。
+`dist/` 不纳入版本控制，构建产物只在 CI 中生成。
 
 ## 数据存储
 

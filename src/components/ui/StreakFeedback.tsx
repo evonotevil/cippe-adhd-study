@@ -10,7 +10,7 @@ interface StreakFeedbackBadgeProps {
 const badgeStyles = {
   good: 'bg-brand text-brand-ink shadow-[0_3px_0_var(--ui-brand-strong)]',
   nice: 'bg-info text-white shadow-[0_3px_0_var(--ui-info-shadow)]',
-  excellent: 'bg-warning text-warning-ink shadow-[0_3px_0_var(--ui-warning-shadow)]',
+  excellent: 'bg-warning text-warning-solid-ink shadow-[0_3px_0_var(--ui-warning-shadow)]',
 };
 
 export function StreakFeedbackBadge({ streak }: StreakFeedbackBadgeProps) {

@@ -129,7 +129,7 @@ export function RandomSetup({ initialSettings, topics, onStart, onBack }: Random
 
       <fieldset className="space-y-4 border-0 p-0">
         <legend className="flex items-center gap-3 text-lg font-black text-ink">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning text-sm text-warning-ink">3</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning text-sm text-warning-solid-ink">3</span>
           怎么答题？
         </legend>
         <div className="grid grid-cols-2 gap-3" role="group" aria-label="选择答题模式">
@@ -141,7 +141,7 @@ export function RandomSetup({ initialSettings, topics, onStart, onBack }: Random
             leading={<Icon name="book" size={24} />}
           >
             <span className="font-black">学习模式</span>
-            <span className="text-xs font-semibold opacity-80">每题立即看解析</span>
+            <span className="text-xs font-semibold opacity-90">每题立即看解析</span>
           </Pressable>
           <Pressable
             variant={mode === 'exam' ? 'secondary' : 'neutral'}
@@ -151,7 +151,7 @@ export function RandomSetup({ initialSettings, topics, onStart, onBack }: Random
             leading={<Icon name="target" size={24} />}
           >
             <span className="font-black">考试模式</span>
-            <span className="text-xs font-semibold opacity-80">交卷后统一查看</span>
+            <span className="text-xs font-semibold opacity-90">交卷后统一查看</span>
           </Pressable>
         </div>
       </fieldset>

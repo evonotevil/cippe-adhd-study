@@ -58,7 +58,7 @@ const ACHIEVEMENTS: Achievement[] = [
 const unlockedTone = {
   brand: 'border-brand-shadow bg-brand text-brand-ink shadow-[0_4px_0_var(--ui-brand-shadow)]',
   info: 'border-info-shadow bg-info text-white shadow-[0_4px_0_var(--ui-info-shadow)]',
-  warning: 'border-warning-shadow bg-warning text-warning-ink shadow-[0_4px_0_var(--ui-warning-shadow)]',
+  warning: 'border-warning-shadow bg-warning text-warning-solid-ink shadow-[0_4px_0_var(--ui-warning-shadow)]',
   danger: 'border-danger-shadow bg-danger text-white shadow-[0_4px_0_var(--ui-danger-shadow)]',
 };
 

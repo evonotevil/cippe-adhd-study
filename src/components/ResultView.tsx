@@ -60,7 +60,7 @@ export function ResultView({
           <p className="mt-1 text-xs font-bold text-muted">正确率</p>
         </div>
         <div className="border-r-2 border-line p-4">
-          <p className="text-xl font-black tabular-nums text-info">{formatTime(session.elapsedSeconds)}</p>
+          <p className="text-xl font-black tabular-nums text-info-accent">{formatTime(session.elapsedSeconds)}</p>
           <p className="mt-1 text-xs font-bold text-muted">总用时</p>
         </div>
         <div className="p-4">

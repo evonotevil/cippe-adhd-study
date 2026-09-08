@@ -37,7 +37,7 @@ export function Timer({ duration = 15, breakDuration = 5, onFocusComplete }: Tim
   return (
     <div className="mx-auto max-w-xl space-y-7 text-center">
       <header>
-        <p className="text-sm font-extrabold text-danger">专注一下</p>
+        <p className="text-sm font-extrabold text-danger-accent">专注一下</p>
         <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">番茄钟</h1>
         <p className="mt-2 text-sm font-semibold text-muted">
           {isBreak ? '让大脑休息一下，下一轮会更清晰。' : '只做眼前这一件事，到点就休息。'}

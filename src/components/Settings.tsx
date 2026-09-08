@@ -204,7 +204,7 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
   return (
     <div className="space-y-7">
       <header>
-        <p className="text-sm font-extrabold text-info">按你的节奏学习</p>
+        <p className="text-sm font-extrabold text-info-accent">按你的节奏学习</p>
         <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">设置</h1>
       </header>
 
@@ -367,7 +367,7 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
         </div>
 
         <div aria-live="polite" className="text-center text-sm font-bold">
-          {importMessage && <p className="text-danger">{importMessage}</p>}
+          {importMessage && <p className="text-danger-accent">{importMessage}</p>}
         </div>
       </section>
     </div>
