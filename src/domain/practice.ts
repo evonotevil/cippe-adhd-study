@@ -42,23 +42,40 @@ function createItems(sessionId: string, round: number, questionIds: number[]): P
   }));
 }
 
+// Timestamps are ISO-8601 UTC strings, so lexicographic order is chronological
+// order. Comparing strings avoids allocating a Date per comparison.
+function compareTimestamps(a: UserProgress, b: UserProgress): number {
+  return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0;
+}
+
+function toChronological(progress: UserProgress[]): UserProgress[] {
+  for (let index = 1; index < progress.length; index += 1) {
+    if (progress[index - 1].timestamp > progress[index].timestamp) {
+      return [...progress].sort(compareTimestamps);
+    }
+  }
+
+  // Answers are appended in order, so the common case needs no copy and no sort.
+  return progress;
+}
+
 export function buildLearningStates(progress: UserProgress[]): Record<number, QuestionLearningState> {
   const states: Record<number, QuestionLearningState> = {};
-  const chronological = [...progress].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-  );
 
-  chronological.forEach((attempt) => {
-    const state = states[attempt.questionId] ?? {
-      attempted: false,
-      everWrong: false,
-      consecutiveCorrect: 0,
-      attempts: 0,
-      correctAttempts: 0,
-      lastAttemptAt: null,
-    };
+  for (const attempt of toChronological(progress)) {
+    let state = states[attempt.questionId];
+    if (!state) {
+      state = {
+        attempted: true,
+        everWrong: false,
+        consecutiveCorrect: 0,
+        attempts: 0,
+        correctAttempts: 0,
+        lastAttemptAt: null,
+      };
+      states[attempt.questionId] = state;
+    }
 
-    state.attempted = true;
     state.attempts += 1;
     state.lastAttemptAt = attempt.timestamp;
 
@@ -69,9 +86,7 @@ export function buildLearningStates(progress: UserProgress[]): Record<number, Qu
       state.everWrong = true;
       state.consecutiveCorrect = 0;
     }
-
-    states[attempt.questionId] = state;
-  });
+  }
 
   return states;
 }
@@ -86,17 +101,25 @@ export function getPendingMistakeIds(
 
 export function getTodayStats(progress: UserProgress[]): { answered: number; correct: number } {
   const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const todayAttempts = progress.filter((attempt) => {
-    const date = new Date(attempt.timestamp);
-    const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return localDate === today;
-  });
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  let answered = 0;
+  let correct = 0;
 
-  return {
-    answered: todayAttempts.length,
-    correct: todayAttempts.filter((attempt) => attempt.isCorrect).length,
-  };
+  // Today's answers sit at the tail of the chronological log, so walk backwards
+  // and stop at the first attempt from before midnight instead of scanning all
+  // of history on every answer.
+  const chronological = toChronological(progress);
+  for (let index = chronological.length - 1; index >= 0; index -= 1) {
+    const attempt = chronological[index];
+    const time = Date.parse(attempt.timestamp);
+    if (Number.isNaN(time)) continue;
+    if (time < startOfToday) break;
+
+    answered += 1;
+    if (attempt.isCorrect) correct += 1;
+  }
+
+  return { answered, correct };
 }
 
 export function getTopicProgress(
@@ -148,29 +171,23 @@ function getReinforcementIds(
   const mistakeIdSet = new Set(mistakes);
   const remaining = scope
     .filter((question) => !mistakeIdSet.has(question.id))
-    .sort((a, b) => {
-      const aTime = states[a.id]?.lastAttemptAt
-        ? new Date(states[a.id].lastAttemptAt as string).getTime()
-        : 0;
-      const bTime = states[b.id]?.lastAttemptAt
-        ? new Date(states[b.id].lastAttemptAt as string).getTime()
-        : 0;
-      return aTime - bTime;
-    })
-    .map((question) => question.id);
+    // ISO-8601 UTC strings sort chronologically as strings; '' sorts first, which
+    // keeps never-attempted questions at the front as before.
+    .map((question) => [question.id, states[question.id]?.lastAttemptAt ?? ''] as const)
+    .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0))
+    .map(([questionId]) => questionId);
 
   return [...mistakes, ...remaining];
 }
 
 export function createPracticeSession(
   questions: Question[],
-  progress: UserProgress[],
+  states: Record<number, QuestionLearningState>,
   options: CreateSessionOptions,
 ): PracticeSession {
   const id = createSessionId();
   const topic = options.topic ?? null;
   const mode = options.mode ?? 'study';
-  const states = buildLearningStates(progress);
   let phase: PracticeSession['phase'] = 'new';
   let questionIds: number[];
 
@@ -217,10 +234,9 @@ export function createPracticeSession(
 export function addReinforcementRound(
   session: PracticeSession,
   questions: Question[],
-  progress: UserProgress[],
+  states: Record<number, QuestionLearningState>,
 ): PracticeSession {
   const round = session.round + 1;
-  const states = buildLearningStates(progress);
   const questionIds = getReinforcementIds(questions, states, session.topic);
 
   return {

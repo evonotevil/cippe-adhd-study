@@ -9,6 +9,7 @@ import type {
 import { useDataTransfer } from '../hooks/useDataTransfer';
 import { QUESTION_COUNT } from '../data/questionCatalog';
 import { useSound } from '../hooks/useSound';
+import { flushPendingWrites } from '../utils/persistentStorage';
 import { Icon, type IconName } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
 
@@ -150,6 +151,8 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
   };
 
   const handleExport = () => {
+    // Reads localStorage directly, so any queued write has to land first.
+    flushPendingWrites();
     const data = {
       version: 2,
       progress: JSON.parse(localStorage.getItem('cippe-progress') || '[]'),
@@ -185,6 +188,9 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
       if (data.randomSettings !== undefined) {
         entries.push(['cippe-random-settings', data.randomSettings]);
       }
+      // Drain queued writes first so none of them can land on top of the
+      // imported data between here and the reload.
+      flushPendingWrites();
       replaceLocalData(entries);
       onUpdate(data.settings);
       window.location.reload();

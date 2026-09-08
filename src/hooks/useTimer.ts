@@ -77,6 +77,23 @@ function writeStoredState(state: TimerState): void {
   }
 }
 
+// While a phase is running, `timeLeft` is recomputed from `deadline` on load,
+// so the per-second tick carries no information that has to survive a reload.
+// Persisting only the durable fields turns one localStorage write per second
+// into one write per real state change.
+function persistenceSignature(state: TimerState): string {
+  const volatile = state.isRunning && state.deadline !== null ? 'run' : String(state.timeLeft);
+  return [
+    volatile,
+    state.deadline,
+    state.isBreak,
+    state.sessionsCompleted,
+    state.phaseDuration,
+    state.completionSequence,
+    state.acknowledgedCompletionSequence,
+  ].join('|');
+}
+
 function reconcileRunningState(
   state: TimerState,
   now: number,
@@ -150,6 +167,7 @@ export function useTimer(duration: number = 15, breakDuration: number = 5) {
     ),
   );
   const stateRef = useRef(state);
+  const persistedSignature = useRef<string | null>(null);
 
   const updateState = useCallback((updater: (previous: TimerState) => TimerState) => {
     setState((previous) => {
@@ -161,6 +179,10 @@ export function useTimer(duration: number = 15, breakDuration: number = 5) {
 
   useEffect(() => {
     stateRef.current = state;
+
+    const signature = persistenceSignature(state);
+    if (signature === persistedSignature.current) return;
+    persistedSignature.current = signature;
     writeStoredState(state);
   }, [state]);
 
@@ -223,6 +245,7 @@ export function useTimer(duration: number = 15, breakDuration: number = 5) {
     };
     stateRef.current = claimed;
     setState(claimed);
+    persistedSignature.current = persistenceSignature(claimed);
     writeStoredState(claimed);
     return true;
   }, []);

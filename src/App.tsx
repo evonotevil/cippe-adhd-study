@@ -130,6 +130,21 @@ function App() {
   }, [settings.fontSize, settings.theme]);
 
   useEffect(() => {
+    // Every practice mode needs the question bank, so warm it while the browser
+    // is idle instead of making the first tap wait on a ~170 kB download.
+    if (typeof window.requestIdleCallback !== 'function') {
+      const timeout = window.setTimeout(() => void loadQuestionBank().catch(() => {}), 1200);
+      return () => window.clearTimeout(timeout);
+    }
+
+    const handle = window.requestIdleCallback(
+      () => void loadQuestionBank().catch(() => {}),
+      { timeout: 3000 },
+    );
+    return () => window.cancelIdleCallback(handle);
+  }, []);
+
+  useEffect(() => {
     document.title = `${VIEW_TITLES[currentView]} · CIPPE 学习终端`;
     if (!hasMounted.current) {
       hasMounted.current = true;
@@ -181,39 +196,39 @@ function App() {
   const startRecommended = useCallback(async () => {
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
-    launchSession(createPracticeSession(questionBank, progress, {
+    launchSession(createPracticeSession(questionBank, learningStates, {
       kind: 'random',
       mode: 'study',
       topic: null,
       count: 5,
     }));
-  }, [ensureQuestionBank, launchSession, progress]);
+  }, [ensureQuestionBank, launchSession, learningStates]);
 
   const startMistakes = useCallback(async () => {
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
-    launchSession(createPracticeSession(questionBank, progress, { kind: 'mistakes' }));
-  }, [ensureQuestionBank, launchSession, progress]);
+    launchSession(createPracticeSession(questionBank, learningStates, { kind: 'mistakes' }));
+  }, [ensureQuestionBank, launchSession, learningStates]);
 
   const startTopic = useCallback(async (topic: string) => {
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
-    launchSession(createPracticeSession(questionBank, progress, { kind: 'topic', topic }));
-  }, [ensureQuestionBank, launchSession, progress]);
+    launchSession(createPracticeSession(questionBank, learningStates, { kind: 'topic', topic }));
+  }, [ensureQuestionBank, launchSession, learningStates]);
 
   const startRandom = useCallback(async (nextSettings: RandomPracticeSettings) => {
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
     setRandomSettings(nextSettings);
     launchSession(
-      createPracticeSession(questionBank, progress, {
+      createPracticeSession(questionBank, learningStates, {
         kind: 'random',
         mode: nextSettings.mode,
         topic: nextSettings.topic,
         count: nextSettings.count,
       }),
     );
-  }, [ensureQuestionBank, launchSession, progress, setRandomSettings]);
+  }, [ensureQuestionBank, launchSession, learningStates, setRandomSettings]);
 
   const updateActiveSession = useCallback(
     (updater: (session: PracticeSession) => PracticeSession) => {
@@ -247,35 +262,35 @@ function App() {
     if (!activeSession) return;
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
-    const nextSession = addReinforcementRound(activeSession, questionBank, progress);
+    const nextSession = addReinforcementRound(activeSession, questionBank, learningStates);
     setActiveSession(nextSession);
     navigate('practice', 1);
-  }, [activeSession, ensureQuestionBank, navigate, progress, setActiveSession]);
+  }, [activeSession, ensureQuestionBank, learningStates, navigate, setActiveSession]);
 
   const reviewSpecificMistakes = useCallback(async (questionIds: number[]) => {
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
     launchSession(
-      createPracticeSession(questionBank, progress, {
+      createPracticeSession(questionBank, learningStates, {
         kind: 'mistakes',
         questionIds,
       }),
     );
-  }, [ensureQuestionBank, launchSession, progress]);
+  }, [ensureQuestionBank, launchSession, learningStates]);
 
   const repeatLastSession = useCallback(async () => {
     if (!lastResult) return;
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
     launchSession(
-      createPracticeSession(questionBank, progress, {
+      createPracticeSession(questionBank, learningStates, {
         kind: lastResult.kind,
         mode: lastResult.mode,
         topic: lastResult.topic,
         count: lastResult.requestedCount,
       }),
     );
-  }, [ensureQuestionBank, lastResult, launchSession, progress]);
+  }, [ensureQuestionBank, lastResult, launchSession, learningStates]);
 
   const resumeSession = useCallback(async () => {
     const questionBank = await ensureQuestionBank();

@@ -1,22 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { queueWrite, readStoredValue } from '../utils/persistentStorage';
 
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((prev: T) => T)) => void] {
-  const [storedValue, setStoredValue] = useState<T>(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(`Error reading localStorage key "${key}":`, error);
-      return initialValue;
-    }
-  });
+  const [storedValue, setStoredValue] = useState<T>(() => readStoredValue(key, initialValue));
+  const hasHydrated = useRef(false);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(key, JSON.stringify(storedValue));
-    } catch (error) {
-      console.error(`Error writing localStorage key "${key}":`, error);
+    // The first render already reflects what is in storage, so re-serializing it
+    // on mount is pure startup cost. Only real changes are written back.
+    if (!hasHydrated.current) {
+      hasHydrated.current = true;
+      return;
     }
+
+    queueWrite(key, storedValue);
   }, [key, storedValue]);
 
   return [storedValue, setStoredValue];
