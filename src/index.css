@@ -314,6 +314,11 @@ p {
   width: 100%;
 }
 
+/* 番茄钟提示横幅出现时，吸顶的页头整体下移让位。 */
+.app-sticky-top {
+  top: var(--alert-offset, 0px);
+}
+
 .app-safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }

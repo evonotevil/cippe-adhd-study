@@ -147,72 +147,51 @@ function replaceLocalData(entries: Array<[string, unknown]>): void {
 }
 
 interface DurationFieldProps {
-  id: string;
   label: string;
   value: number;
   presets: number[];
-  min: number;
-  max: number;
-  step: number;
   tone: 'danger' | 'brand';
   onChange: (value: number) => void;
 }
 
 const durationTone = {
   danger: {
-    badge: 'bg-danger-soft text-danger-ink',
-    active: 'border-danger-shadow bg-danger-soft text-danger-ink',
-    accent: 'accent-[var(--ui-danger)]',
+    active: 'border-danger-shadow bg-danger-soft text-danger-ink shadow-[0_3px_0_var(--ui-danger-shadow)]',
   },
   brand: {
-    badge: 'bg-brand-soft text-brand-soft-ink',
-    active: 'border-brand-shadow bg-brand-soft text-brand-soft-ink',
-    accent: 'accent-[var(--ui-brand-strong)]',
+    active: 'border-brand-shadow bg-brand-soft text-brand-soft-ink shadow-[0_3px_0_var(--ui-brand-shadow)]',
   },
 };
 
 /**
- * Presets carry the common choices; the slider stays for anything in between.
- * The label is not a wrapper because the preset buttons live inside the card —
- * nested in a <label>, tapping one would also drive the range input.
+ * 预设按钮就是全部选项，没有滑块 —— 手机上 30 个档位挤在一条轨道里根本点不准。
+ * 老数据里可能存着预设之外的值（早期版本用滑块选的），那就把它作为额外一档
+ * 显示出来，免得界面上一个选中项都没有。
  */
-function DurationField({ id, label, value, presets, min, max, step, tone, onChange }: DurationFieldProps) {
-  const styles = durationTone[tone];
+function DurationField({ label, value, presets, tone, onChange }: DurationFieldProps) {
+  const options = presets.includes(value) ? presets : [...presets, value].sort((a, b) => a - b);
 
   return (
-    <div className="rounded-[1.25rem] border-2 border-line bg-surface p-4 shadow-[0_3px_0_var(--ui-line-strong)]">
-      <div className="flex items-center justify-between gap-3 text-sm font-extrabold text-ink">
-        <label htmlFor={id}>{label}</label>
-        <span className={`rounded-lg px-2.5 py-1 tabular-nums ${styles.badge}`}>{value} 分钟</span>
-      </div>
-
-      <div className="mt-3 flex gap-2">
-        {presets.map((preset) => (
+    <fieldset className="rounded-[1.25rem] border-2 border-line bg-surface p-4 shadow-[0_3px_0_var(--ui-line-strong)]">
+      <legend className="px-1 text-sm font-extrabold text-ink">{label}</legend>
+      <div className="mt-1 grid grid-cols-3 gap-2">
+        {options.map((option) => (
           <button
-            key={preset}
+            key={option}
             type="button"
-            aria-pressed={value === preset}
-            onClick={() => onChange(preset)}
-            className={`min-h-11 flex-1 rounded-xl border-2 text-xs font-extrabold tabular-nums transition-colors ${
-              value === preset ? styles.active : 'border-line bg-surface-soft text-muted hover:text-ink'
+            aria-pressed={value === option}
+            onClick={() => onChange(option)}
+            className={`min-h-12 rounded-xl border-2 text-sm font-extrabold tabular-nums transition-colors ${
+              value === option
+                ? durationTone[tone].active
+                : 'border-line bg-surface-soft text-muted hover:text-ink'
             }`}
           >
-            {preset} 分钟
+            {option} 分钟
           </button>
         ))}
       </div>
-
-      <input
-        id={id}
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className={`mt-2 h-11 w-full cursor-pointer ${styles.accent}`}
-      />
-    </div>
+    </fieldset>
   );
 }
 
@@ -305,25 +284,17 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
       <section className="space-y-5" aria-labelledby="focus-settings">
         <h2 id="focus-settings" className="text-lg font-black text-ink">专注节奏</h2>
         <DurationField
-          id="tomato-duration"
           label="番茄钟时长"
           value={localSettings.tomatoDuration}
           presets={[15, 25, 45]}
-          min={5}
-          max={60}
-          step={5}
           tone="danger"
           onChange={(value) => handleChange('tomatoDuration', value)}
         />
 
         <DurationField
-          id="break-duration"
           label="休息时长"
           value={localSettings.breakDuration}
-          presets={[5, 10]}
-          min={5}
-          max={30}
-          step={5}
+          presets={[5, 10, 15]}
           tone="brand"
           onChange={(value) => handleChange('breakDuration', value)}
         />

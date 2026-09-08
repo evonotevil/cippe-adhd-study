@@ -314,7 +314,7 @@ export function PracticeView({
 
   return (
     <div className="space-y-5">
-      <header className="sticky top-0 z-30 -mx-4 -mt-3 border-b-2 border-line bg-app px-4 pb-3 pt-3">
+      <header className="app-sticky-top sticky z-30 -mx-4 -mt-3 border-b-2 border-line bg-app px-4 pb-3 pt-3">
         <div className="mx-auto max-w-2xl">
           <div className="flex items-center gap-3">
             <button

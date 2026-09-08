@@ -1,38 +1,21 @@
-import { useEffect, useRef } from 'react';
 import { m, useReducedMotion } from 'framer-motion';
-import { useTimer } from '../hooks/useTimer';
+import type { useTimer } from '../hooks/useTimer';
 import { formatTime } from '../utils/helpers';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
 
 interface TimerProps {
-  duration?: number;
-  breakDuration?: number;
-  onFocusComplete?: () => void;
+  duration: number;
+  breakDuration: number;
+  // 计时状态由 App 持有，这样番茄钟走完时任何页面都能弹提示。
+  timer: ReturnType<typeof useTimer>;
 }
 
-export function Timer({ duration = 15, breakDuration = 5, onFocusComplete }: TimerProps) {
+export function Timer({ duration, breakDuration, timer }: TimerProps) {
   const reduceMotion = useReducedMotion();
-  const handledCompletionRef = useRef(0);
-  const {
-    timeLeft,
-    isRunning,
-    isBreak,
-    progress,
-    completionSequence,
-    start,
-    pause,
-    reset,
-    claimFocusCompletion,
-  } = useTimer(duration, breakDuration);
+  const { timeLeft, isRunning, isBreak, progress, start, pause, reset } = timer;
   const circumference = 2 * Math.PI * 44;
   const dashOffset = circumference * (1 - Math.min(1, Math.max(0, progress)));
-
-  useEffect(() => {
-    if (completionSequence <= handledCompletionRef.current) return;
-    handledCompletionRef.current = completionSequence;
-    if (onFocusComplete && claimFocusCompletion()) onFocusComplete();
-  }, [claimFocusCompletion, completionSequence, onFocusComplete]);
 
   return (
     <div className="mx-auto max-w-xl space-y-7 text-center">

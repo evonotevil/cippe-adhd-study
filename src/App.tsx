@@ -11,8 +11,11 @@ import { Achievements } from './components/Achievements';
 import { Settings } from './components/Settings';
 import { PageTransition } from './components/ui/PageTransition';
 import { Icon, type IconName } from './components/ui/Icons';
+import { Pressable } from './components/ui/Pressable';
 import { useProgress } from './hooks/useProgress';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { useTimer } from './hooks/useTimer';
+import { useSound } from './hooks/useSound';
 import {
   addReinforcementRound,
   createPracticeSession,
@@ -123,6 +126,56 @@ function App() {
     recordAnswers,
     recordTomatoSession,
   } = useProgress();
+
+  const timer = useTimer(settings.tomatoDuration, settings.breakDuration);
+  const { playComplete } = useSound(settings.soundEnabled);
+  const [timerAlert, setTimerAlert] = useState<'focus' | 'break' | null>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
+  const handledFocus = useRef(0);
+  const handledBreak = useRef(0);
+  const { claimFocusCompletion, claimBreakCompletion, completionSequence, breakSequence } = timer;
+
+  // 专注阶段走完：计一次番茄钟，弹提示，响一声。以前这里只有计数，
+  // 人在答题页时对专注结束毫无察觉，连休息都在无声流走。
+  useEffect(() => {
+    if (completionSequence <= handledFocus.current) return;
+    handledFocus.current = completionSequence;
+    if (!claimFocusCompletion()) return;
+    recordTomatoSession();
+    // 计时器到点是墙钟事件，不是能在渲染期算出来的值，只能在这里落状态。
+    // eslint-disable-next-line react/set-state-in-effect
+    setTimerAlert('focus');
+    void playComplete();
+  }, [claimFocusCompletion, completionSequence, playComplete, recordTomatoSession]);
+
+  useEffect(() => {
+    if (breakSequence <= handledBreak.current) return;
+    handledBreak.current = breakSequence;
+    if (!claimBreakCompletion()) return;
+    // eslint-disable-next-line react/set-state-in-effect
+    setTimerAlert('break');
+    void playComplete();
+  }, [breakSequence, claimBreakCompletion, playComplete]);
+
+  // 横幅自己占位；把实测高度直接写成 CSS 变量，吸顶的页头据此下移，
+  // 不然它会盖住答题页的进度条和「结束」。走 CSS 变量而不是 React state，
+  // 是因为这纯粹是布局尺寸，没必要为它多渲染一轮。
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!timerAlert) {
+      root.style.removeProperty('--alert-offset');
+      return undefined;
+    }
+    const measure = () => {
+      root.style.setProperty('--alert-offset', `${alertRef.current?.offsetHeight ?? 0}px`);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      root.style.removeProperty('--alert-offset');
+    };
+  }, [timerAlert]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
@@ -315,8 +368,56 @@ function App() {
       data-font-size={settings.fontSize}
       className="min-h-screen bg-app text-ink transition-colors duration-200"
     >
+      {timerAlert && (
+        <div ref={alertRef} className="app-safe-top sticky top-0 z-50 bg-app px-3 pb-3 pt-3">
+          <div
+            role="alert"
+            className={`mx-auto flex max-w-md items-start gap-3 rounded-[1.25rem] border-2 p-4 shadow-[0_5px_0_var(--ui-shadow-color)] ${
+              timerAlert === 'focus'
+                ? 'border-brand-shadow bg-brand-soft text-brand-soft-ink'
+                : 'border-danger-shadow bg-danger-soft text-danger-ink'
+            }`}
+          >
+            <span
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                timerAlert === 'focus' ? 'bg-brand text-brand-ink' : 'bg-danger text-white'
+              }`}
+            >
+              <Icon name={timerAlert === 'focus' ? 'leaf' : 'timer'} size={23} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-black">
+                {timerAlert === 'focus' ? '专注结束了' : '休息结束了'}
+              </p>
+              <p className="mt-0.5 text-sm font-semibold">
+                {timerAlert === 'focus'
+                  ? `已完成 ${stats.tomatoSessions} 个番茄钟，休息 ${settings.breakDuration} 分钟。`
+                  : '可以开始下一轮专注了。'}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Pressable variant="neutral" size="sm" onClick={() => setTimerAlert(null)}>
+                  知道了
+                </Pressable>
+                {timerAlert === 'focus' && (
+                  <Pressable
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      timer.skipBreak();
+                      setTimerAlert(null);
+                    }}
+                  >
+                    跳过休息
+                  </Pressable>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAppHeader && (
-        <header className="app-safe-top sticky top-0 z-40 border-b-2 border-line bg-surface">
+        <header className="app-safe-top app-sticky-top sticky z-40 border-b-2 border-line bg-surface">
           <div className="mx-auto max-w-4xl px-4 pt-3">
             <div className="flex items-center justify-between gap-3">
               <button
@@ -387,7 +488,7 @@ function App() {
           <Timer
             duration={settings.tomatoDuration}
             breakDuration={settings.breakDuration}
-            onFocusComplete={recordTomatoSession}
+            timer={timer}
           />
         </div>
 

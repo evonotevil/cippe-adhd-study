@@ -2,6 +2,7 @@ import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { useEffect, useRef } from 'react';
 import type { PracticeMode, Question } from '../types';
 import { useSound } from '../hooks/useSound';
+import { parseQuestionText, scenarioLength, splitOption } from '../utils/questionText';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
 import { StreakFeedbackBadge } from './ui/StreakFeedback';
@@ -65,6 +66,9 @@ export function QuizCard({
   const { playCorrect, playWrong } = useSound(soundEnabled);
   const isCorrect = selectedAnswer === question.correctAnswer;
   const explanation = parseExplanation(question.explanation);
+  const parsed = parseQuestionText(question.question);
+  // 短的引子直接顺着排；长材料才值得单独成块。
+  const hasLongScenario = scenarioLength(parsed.scenario) >= 160;
   const visibleOptions = showResult
     ? question.options.filter((option) => {
         const answer = option.charAt(0);
@@ -122,17 +126,50 @@ export function QuizCard({
           <Icon name="book" size={15} />
           {question.topic}
         </span>
+        {/* 提问放在最前：先知道要找什么，再读材料。 */}
         <h1
           id={`question-${question.id}`}
-          className="whitespace-pre-wrap text-lg font-bold leading-[1.65] tracking-[-0.008em] text-ink sm:text-xl"
+          className="max-w-[62ch] text-balance text-lg font-bold leading-[1.65] tracking-[-0.008em] text-ink sm:text-xl"
         >
-          {question.question}
+          {parsed.prompt}
         </h1>
+
+        {parsed.scenario.length > 0 && (
+          hasLongScenario ? (
+            <section
+              aria-label="情景材料"
+              className="mt-4 rounded-[1.25rem] border-2 border-line bg-surface-soft p-4"
+            >
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-muted">
+                <Icon name="pages" size={15} />
+                情景材料 · 约 {Math.round(scenarioLength(parsed.scenario) / 10) * 10} 字
+              </p>
+              <div className="space-y-3">
+                {parsed.scenario.map((paragraph, index) => (
+                  <p
+                    key={index}
+                    className="max-w-[68ch] whitespace-pre-line break-words text-sm font-medium leading-[1.75] text-ink"
+                  >
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {parsed.scenario.map((paragraph, index) => (
+                <p key={index} className="max-w-[62ch] whitespace-pre-line break-words text-base font-semibold leading-[1.7] text-muted">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+          )
+        )}
       </header>
 
       <div className="mb-6 space-y-3" role="group" aria-label="答案选项">
         {visibleOptions.map((option) => {
-          const answer = option.charAt(0);
+          const { letter: answer, text: optionText } = splitOption(option);
           const state = getOptionState(answer);
           const resultIcon = state === 'correct' ? 'check' : state === 'wrong' ? 'x' : null;
 
@@ -151,12 +188,12 @@ export function QuizCard({
                     : { x: 0, scale: 1 }
               }
               transition={{ duration: state === 'wrong' ? 0.22 : 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className={`flex min-h-[68px] w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left font-semibold transition-[transform,box-shadow,border-color,background-color,color] duration-150 active:translate-y-[3px] active:shadow-none ${optionStyles[state]}`}
+              className={`flex min-h-[68px] w-full items-start gap-3 rounded-2xl border-2 px-4 py-3.5 text-left font-semibold transition-[transform,box-shadow,border-color,background-color,color] duration-150 active:translate-y-[3px] active:shadow-none ${optionStyles[state]}`}
             >
               <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 text-sm font-black ${badgeStyles[state]}`}>
                 {resultIcon ? <Icon name={resultIcon} size={21} /> : answer}
               </span>
-              <span className="min-w-0 flex-1 leading-relaxed">{option.slice(3)}</span>
+              <span className="min-w-0 flex-1 self-center break-words leading-[1.7]">{optionText}</span>
             </m.button>
           );
         })}
@@ -191,13 +228,13 @@ export function QuizCard({
                 </div>
                 <div className="mt-4">
                   <p className="text-xs font-extrabold text-muted">先记这一条</p>
-                  <p className="mt-1 text-sm font-semibold leading-relaxed text-ink">
+                  <p className="mt-1 max-w-[68ch] break-words text-sm font-semibold leading-[1.75] text-ink">
                     {explanation.summary}
                   </p>
                 </div>
               </div>
               {explanation.memoryCue && (
-                <p className="mt-3 rounded-xl bg-surface-soft px-3 py-2 text-sm font-medium leading-relaxed text-ink">
+                <p className="mt-3 max-w-[68ch] break-words rounded-xl bg-surface-soft px-3 py-2 text-sm font-medium leading-[1.75] text-ink">
                   <span className="font-extrabold">知识点：</span>
                   {explanation.memoryCue}
                 </p>
@@ -219,7 +256,7 @@ export function QuizCard({
                 <summary className="min-h-11 cursor-pointer rounded-lg px-2 py-3 font-extrabold text-muted transition-colors hover:bg-surface-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">
                   展开完整分析
                 </summary>
-                <p className="max-w-[70ch] px-2 pb-1 pt-2 font-medium leading-relaxed text-ink">
+                <p className="max-w-[68ch] break-words px-2 pb-1 pt-2 font-medium leading-[1.75] text-ink">
                   {explanation.details}
                 </p>
               </details>

@@ -11,6 +11,8 @@ interface TimerState {
   phaseDuration: number;
   completionSequence: number;
   acknowledgedCompletionSequence: number;
+  breakSequence: number;
+  acknowledgedBreakSequence: number;
 }
 
 function toSeconds(minutes: number): number {
@@ -28,6 +30,8 @@ function createInitialState(duration: number): TimerState {
     phaseDuration,
     completionSequence: 0,
     acknowledgedCompletionSequence: 0,
+    breakSequence: 0,
+    acknowledgedBreakSequence: 0,
   };
 }
 
@@ -62,6 +66,10 @@ function readStoredState(duration: number, breakDuration: number): TimerState {
       acknowledgedCompletionSequence: Number.isFinite(stored.acknowledgedCompletionSequence)
         ? Math.max(0, Number(stored.acknowledgedCompletionSequence))
         : 0,
+      breakSequence: Number.isFinite(stored.breakSequence) ? Math.max(0, Number(stored.breakSequence)) : 0,
+      acknowledgedBreakSequence: Number.isFinite(stored.acknowledgedBreakSequence)
+        ? Math.max(0, Number(stored.acknowledgedBreakSequence))
+        : 0,
     };
   } catch (error) {
     console.error('Error reading timer state:', error);
@@ -91,6 +99,8 @@ function persistenceSignature(state: TimerState): string {
     state.phaseDuration,
     state.completionSequence,
     state.acknowledgedCompletionSequence,
+    state.breakSequence,
+    state.acknowledgedBreakSequence,
   ].join('|');
 }
 
@@ -116,6 +126,7 @@ function reconcileRunningState(
       isBreak: false,
       deadline: null,
       phaseDuration,
+      breakSequence: state.breakSequence + 1,
     };
   }
 
@@ -266,6 +277,18 @@ export function useTimer(duration: number = 15, breakDuration: number = 5) {
     });
   }, [breakDuration, duration, updateState]);
 
+  const claimBreakCompletion = useCallback(() => {
+    const current = stateRef.current;
+    if (current.acknowledgedBreakSequence >= current.breakSequence) return false;
+
+    const claimed = { ...current, acknowledgedBreakSequence: current.breakSequence };
+    stateRef.current = claimed;
+    setState(claimed);
+    persistedSignature.current = persistenceSignature(claimed);
+    writeStoredState(claimed);
+    return true;
+  }, []);
+
   useEffect(() => {
     if (!state.isRunning || state.deadline === null) return undefined;
 
@@ -302,5 +325,6 @@ export function useTimer(duration: number = 15, breakDuration: number = 5) {
     reset,
     skipBreak,
     claimFocusCompletion,
+    claimBreakCompletion,
   };
 }
