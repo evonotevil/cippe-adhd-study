@@ -233,7 +233,8 @@ p {
 .pressable:active:not(:disabled),
 .pressable[data-pressed="true"] {
   box-shadow: 0 1px 0 var(--press-shadow);
-  transform: translateY(calc(var(--press-depth) - 1px));
+  /* ghost 的 depth 是 0，不夹住的话按下会变成 -1px，按钮反而往上跳。 */
+  transform: translateY(max(0px, calc(var(--press-depth) - 1px)));
 }
 
 .pressable:disabled {
@@ -282,6 +283,14 @@ p {
   --press-border: var(--ui-line);
   --press-shadow: var(--ui-line-strong);
   --press-ink: var(--ui-ink);
+}
+
+.pressable--danger-soft {
+  --press-depth: 3px;
+  --press-fill: var(--ui-danger-soft);
+  --press-border: var(--ui-danger-soft);
+  --press-shadow: var(--ui-danger);
+  --press-ink: var(--ui-danger-ink);
 }
 
 .pressable--ghost {

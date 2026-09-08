@@ -332,13 +332,14 @@ export function PracticeView({
               tone={session.mode === 'exam' ? 'info' : 'brand'}
               className="flex-1"
             />
-            <button
-              type="button"
+            <Pressable
+              variant="danger-soft"
+              size="sm"
               onClick={handleEnd}
-              className="min-h-11 shrink-0 rounded-xl px-2 text-xs font-extrabold text-danger-accent hover:bg-danger-soft"
+              className="shrink-0 px-3"
             >
               {session.mode === 'exam' ? '交卷' : '结束'}
-            </button>
+            </Pressable>
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1 text-xs font-bold text-muted">
             <span className="min-w-0 flex-1 truncate">{getSessionTitle(session)}</span>

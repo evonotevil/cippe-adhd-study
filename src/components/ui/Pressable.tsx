@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-type PressableVariant = 'featured' | 'primary' | 'secondary' | 'neutral' | 'danger' | 'warning' | 'ghost';
+type PressableVariant =
+  | 'featured' | 'primary' | 'secondary' | 'neutral' | 'danger' | 'danger-soft' | 'warning' | 'ghost';
 type PressableSize = 'sm' | 'md' | 'lg';
 
 interface PressableProps extends ButtonHTMLAttributes<HTMLButtonElement> {
