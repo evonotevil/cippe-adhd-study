@@ -9,6 +9,7 @@ import type {
   UserProgress,
 } from '../types';
 import { shuffleArray } from '../utils/helpers';
+import { SCENARIO_GROUP_OF } from '../data/scenarioGroups';
 
 export const TOPIC_ORDER = [
   '历史沿革/95-46-EC',
@@ -28,6 +29,71 @@ interface CreateSessionOptions {
   topic?: string | null;
   count?: number | null;
   questionIds?: number[];
+}
+
+// —— 情景题成组 ——
+// 题库里约四分之一的题共享一段很长的英文背景（见 data/scenarioGroups.ts）。
+// 单题洗牌会把同一段背景的几道题打散，人就得为同一段文字反复付一次阅读成本。
+// 下面这几个函数把"情景组"当成洗牌的最小单位：组和组之间随机，组内的题始终相邻。
+
+/**
+ * 把题目 id 列表按情景分组：同组的题聚到一起，不属于任何情景组的题各自成组。
+ * 组的先后、以及组内的顺序，都沿用传入列表原有的顺序（调用方已经洗过了）。
+ */
+function collectScenarioBlocks(questionIds: number[]): number[][] {
+  const blocks: number[][] = [];
+  const blockOfGroup = new Map<number, number[]>();
+
+  for (const questionId of questionIds) {
+    const groupIndex = SCENARIO_GROUP_OF.get(questionId);
+    if (groupIndex === undefined) {
+      blocks.push([questionId]);
+      continue;
+    }
+
+    const existing = blockOfGroup.get(groupIndex);
+    if (existing) {
+      existing.push(questionId);
+      continue;
+    }
+
+    const block = [questionId];
+    blockOfGroup.set(groupIndex, block);
+    blocks.push(block);
+  }
+
+  return blocks;
+}
+
+/** 洗牌，但同一情景的题绝不拆开：先洗组，再展开。 */
+function shuffleKeepingScenariosTogether(questionIds: number[]): number[] {
+  const blocks = collectScenarioBlocks(questionIds);
+  if (blocks.length === questionIds.length) return shuffleArray(questionIds);
+  return shuffleArray(blocks).flat();
+}
+
+/** 保持给定顺序，只把同一情景的题收拢到该组第一题的位置上。 */
+function regroupScenarios(questionIds: number[]): number[] {
+  const blocks = collectScenarioBlocks(questionIds);
+  return blocks.length === questionIds.length ? questionIds : blocks.flat();
+}
+
+/**
+ * 按「组」而不是按「题」来数题数。一个 6 题的情景组要么整组进来，要么不进来，
+ * 所以实际题数会略微超出请求值 —— 背景都读了，就该一次用完，界面上写「约 N 题」。
+ */
+function takeAtLeast(questionIds: number[], requestedCount: number): number[] {
+  const taken: number[] = [];
+  for (const block of collectScenarioBlocks(questionIds)) {
+    if (taken.length >= requestedCount) break;
+    taken.push(...block);
+  }
+  return taken;
+}
+
+/** 这一组题里，和它同属一个情景组的题一共有几道（用于「本组还有 N 题」提示）。 */
+export function getScenarioGroupIndex(questionId: number): number | undefined {
+  return SCENARIO_GROUP_OF.get(questionId);
 }
 
 function createSessionId(): string {
@@ -199,8 +265,10 @@ function getReinforcementIds(
 ): number[] {
   const pendingMistakes = new Set(getPendingMistakeIds(states));
   const scope = getScopeQuestions(questions, topic);
-  const mistakes = shuffleArray(scope.filter((question) => pendingMistakes.has(question.id))).map(
-    (question) => question.id,
+  const mistakes = shuffleKeepingScenariosTogether(
+    shuffleArray(scope.filter((question) => pendingMistakes.has(question.id))).map(
+      (question) => question.id,
+    ),
   );
   const mistakeIdSet = new Set(mistakes);
   const remaining = scope
@@ -211,7 +279,9 @@ function getReinforcementIds(
     .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0))
     .map(([questionId]) => questionId);
 
-  return [...mistakes, ...remaining];
+  // 错题在前、其余按"最久没做"排在后 —— 这个优先级保持不变，
+  // 只是各自内部把同一情景的题收拢，免得读完背景只答一题。
+  return [...mistakes, ...regroupScenarios(remaining)];
 }
 
 /** 「继续巩固」会往当前这组里追加多少题 —— 界面得先告诉人再让人点。 */
@@ -235,21 +305,26 @@ export function createPracticeSession(
   let questionIds: number[];
 
   if (options.questionIds) {
-    questionIds = shuffleArray(options.questionIds);
+    questionIds = shuffleKeepingScenariosTogether(options.questionIds);
   } else if (options.kind === 'mistakes') {
-    questionIds = shuffleArray(getPendingMistakeIds(states));
+    questionIds = shuffleKeepingScenariosTogether(getPendingMistakeIds(states));
   } else {
     const scope = getScopeQuestions(questions, topic);
-    const unseen = shuffleArray(scope.filter((question) => !states[question.id]?.attempted)).map(
-      (question) => question.id,
+    const unseen = shuffleKeepingScenariosTogether(
+      shuffleArray(scope.filter((question) => !states[question.id]?.attempted)).map(
+        (question) => question.id,
+      ),
     );
 
     if (options.kind === 'random') {
-      const seen = shuffleArray(scope.filter((question) => states[question.id]?.attempted)).map(
-        (question) => question.id,
+      const seen = shuffleKeepingScenariosTogether(
+        shuffleArray(scope.filter((question) => states[question.id]?.attempted)).map(
+          (question) => question.id,
+        ),
       );
       const requestedCount = Math.max(1, options.count ?? 10);
-      questionIds = [...unseen, ...seen].slice(0, Math.min(requestedCount, scope.length));
+      // 按组取，所以可能略多于 requestedCount：一个情景组不会被拦腰截断。
+      questionIds = takeAtLeast([...unseen, ...seen], Math.min(requestedCount, scope.length));
     } else if (unseen.length > 0) {
       questionIds = unseen;
     } else {

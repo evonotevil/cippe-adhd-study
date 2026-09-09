@@ -123,6 +123,10 @@ export function RandomSetup({ initialSettings, topics, onStart, onBack }: Random
             当前范围只有 {availableCount} 题，本次将使用全部题目。
           </p>
         )}
+        {/* 情景组是不可拆的，所以这里承诺的是"约"，不是"正好"。先说清楚，别让人到了做题页才发现多出两题。 */}
+        <p className="text-xs font-semibold leading-relaxed text-muted">
+          共用一段长背景的情景题会整组一起出，所以实际题数可能比这个数略多几题。
+        </p>
       </fieldset>
 
       <div className="h-0.5 bg-line" aria-hidden="true" />

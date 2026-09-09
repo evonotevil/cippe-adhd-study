@@ -151,7 +151,7 @@ export function Home({
               {isFirstRun
                 ? '约 4 分钟 · 每题都有即时反馈'
                 : unseenCount > 0
-                  ? '约 4 分钟 · 优先学习未做题'
+                  ? '约 4 分钟 · 优先未做题 · 情景题连着做'
                   : '约 4 分钟 · 回顾较久未练的题'}
             </span>
           </span>

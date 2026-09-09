@@ -1,5 +1,5 @@
 import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PracticeMode, Question } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useSound } from '../hooks/useSound';
@@ -20,6 +20,11 @@ interface QuizCardProps {
   onSkip: () => void;
   onNext: () => void;
   onPrevious?: () => void;
+  /**
+   * 当前题在「同一段情景背景」的连续区间里的位置。null 表示这题的背景不与别人共享。
+   * missing 是这一组里没被排进本次练习的题数（专题练习按 Topic 过滤时会切开跨 Topic 的组）。
+   */
+  scenarioRun?: { position: number; total: number; missing: number } | null;
 }
 
 type OptionState = 'idle' | 'selected' | 'correct' | 'wrong' | 'muted';
@@ -63,6 +68,7 @@ export function QuizCard({
   onSkip,
   onNext,
   onPrevious,
+  scenarioRun,
 }: QuizCardProps) {
   const reduceMotion = useReducedMotion();
   const nextActionRef = useRef<HTMLDivElement>(null);
@@ -76,6 +82,10 @@ export function QuizCard({
   const showRuleHint = showResult && !isCorrect && !ruleExplained;
   // 短的引子直接顺着排；长材料才值得单独成块。
   const hasLongScenario = scenarioLength(parsed.scenario) >= 160;
+  // 同一情景的第二题起，背景默认收起 —— 刚读完的两千字不该再铺一遍。
+  // 换题时 key 变了，组件重挂载，这个默认值会重新按新题算一次。
+  const [scenarioOpen, setScenarioOpen] = useState(!scenarioRun || scenarioRun.position === 1);
+  const roundedScenarioChars = Math.round(scenarioLength(parsed.scenario) / 10) * 10;
   // 四个选项始终都在。解析里会逐个点评（"C 混淆了…；D 遗漏了…"），
   // 把没选中的错项藏起来会让那段分析无从对照。错项用 muted 弱化即可。
   const visibleOptions = question.options;
@@ -151,20 +161,57 @@ export function QuizCard({
               aria-label="情景材料"
               className="mt-4 rounded-[1.25rem] border-2 border-line bg-surface-soft p-4"
             >
-              <p className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-muted">
-                <Icon name="pages" size={15} />
-                情景材料 · 约 {Math.round(scenarioLength(parsed.scenario) / 10) * 10} 字
-              </p>
-              <div className="space-y-3">
-                {parsed.scenario.map((paragraph, index) => (
-                  <p
-                    key={index}
-                    className="max-w-[68ch] whitespace-pre-line break-words text-sm font-medium leading-[1.75] text-ink"
-                  >
-                    {paragraph}
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                {/* 收起状态下字数写在正文里，标题栏就让给「第几题」和展开按钮，一行放得下。 */}
+                {scenarioOpen && (
+                  <p className="flex items-center gap-1.5 text-xs font-extrabold text-muted">
+                    <Icon name="pages" size={15} />
+                    情景材料 · 约 {roundedScenarioChars} 字
                   </p>
-                ))}
+                )}
+                {scenarioRun && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-[0.6875rem] font-extrabold text-brand-soft-ink">
+                    <Icon name="pages" size={13} />
+                    同一情景 · 第 {scenarioRun.position} / {scenarioRun.total} 题
+                  </span>
+                )}
+                {/* 读过一遍的背景不该再占满整屏。收起后仍然一键可取回。 */}
+                {scenarioRun && scenarioRun.position > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setScenarioOpen((open) => !open)}
+                    aria-expanded={scenarioOpen}
+                    // 44px 的可点高度 + brand-soft 底色：护眼主题下 brand-strong 压在
+                    // surface-soft 上只有 4.25:1，配上 soft-ink 才够 4.5。
+                    className="ml-auto inline-flex min-h-11 items-center rounded-full border-2 border-transparent bg-brand-soft px-3.5 text-xs font-extrabold text-brand-soft-ink hover:border-brand"
+                  >
+                    {scenarioOpen ? '收起背景' : '展开背景'}
+                  </button>
+                )}
               </div>
+              {scenarioOpen ? (
+                <div className="space-y-3">
+                  {parsed.scenario.map((paragraph, index) => (
+                    <p
+                      key={index}
+                      className="max-w-[68ch] whitespace-pre-line break-words text-sm font-medium leading-[1.75] text-ink"
+                    >
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm font-medium leading-[1.75] text-muted">
+                  背景和上一题相同（约 {roundedScenarioChars} 字），已收起。
+                </p>
+              )}
+              {scenarioRun && scenarioRun.missing > 0 && (
+                // 专题练习按 Topic 过滤，会把跨 Topic 的情景组切开。说清楚，别假装完整。
+                <p className="mt-3 border-t-2 border-line pt-2.5 text-xs font-semibold text-muted">
+                  这个情景在题库里共 {scenarioRun.total + scenarioRun.missing} 题，
+                  另外 {scenarioRun.missing} 题在其他 Topic 下。
+                </p>
+              )}
             </section>
           ) : (
             <div className="mt-3 space-y-2">

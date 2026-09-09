@@ -1,7 +1,8 @@
 import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PracticeAttempt, PracticeItem, PracticeSession, Question } from '../types';
-import { getSessionTitle } from '../domain/practice';
+import { getScenarioGroupIndex, getSessionTitle } from '../domain/practice';
+import { SCENARIO_GROUPS } from '../data/scenarioGroups';
 import { formatTime } from '../utils/helpers';
 import { getCurrentCorrectStreak } from '../utils/streak';
 import { QuizCard } from './QuizCard';
@@ -53,6 +54,34 @@ export function PracticeView({
     [questions],
   );
   const currentQuestion = currentItem ? questionMap.get(currentItem.questionId) : undefined;
+
+  // 同一段情景背景的题现在是连着出的（见 domain/practice 的 shuffleKeepingScenariosTogether）。
+  // 这里找出当前题所在的那一段连续区间，好让 QuizCard 知道"这是同一个情景的第几题"，
+  // 从第二题起就不用再把两千字的背景重铺一遍。
+  const scenarioRun = useMemo(() => {
+    if (!currentItem) return null;
+    const groupIndex = getScenarioGroupIndex(currentItem.questionId);
+    if (groupIndex === undefined) return null;
+
+    const sameGroup = (index: number) => {
+      const item = session.items[index];
+      return item !== undefined && getScenarioGroupIndex(item.questionId) === groupIndex;
+    };
+
+    let start = session.currentIndex;
+    while (start > 0 && sameGroup(start - 1)) start -= 1;
+    let end = session.currentIndex;
+    while (end < session.items.length - 1 && sameGroup(end + 1)) end += 1;
+
+    const total = end - start + 1;
+    if (total < 2) return null;
+
+    // 这一组题库里一共有几道 —— 专题练习按 Topic 过滤时会把跨 Topic 的组切开，
+    // 界面得说实话，而不是假装这一组是完整的。
+    const inBank = SCENARIO_GROUPS[groupIndex]?.length ?? total;
+
+    return { position: session.currentIndex - start + 1, total, missing: Math.max(0, inBank - total) };
+  }, [currentItem, session.currentIndex, session.items]);
 
   useEffect(() => {
     const startedAt = Date.now() - elapsedSecondsRef.current * 1000;
@@ -159,7 +188,27 @@ export function PracticeView({
       if (index < 0) return current;
       const items = [...current.items];
       const [skipped] = items.splice(index, 1);
-      items.push({ ...skipped, skippedCount: skipped.skippedCount + 1 });
+      const moved = { ...skipped, skippedCount: skipped.skippedCount + 1 };
+
+      // 情景题跳过时不能扔到队尾 —— 那等于把刚读完的两千字背景作废，
+      // 轮到它的时候人得从头再读一遍。挪到本情景组的末尾就够了。
+      const skippedGroup = getScenarioGroupIndex(moved.questionId);
+      const runEnd =
+        skippedGroup === undefined
+          ? -1
+          : (() => {
+              let end = index;
+              while (
+                end < items.length &&
+                getScenarioGroupIndex(items[end].questionId) === skippedGroup
+              ) {
+                end += 1;
+              }
+              return end;
+            })();
+
+      if (runEnd > index) items.splice(runEnd, 0, moved);
+      else items.push(moved);
 
       // 被跳过的题挪到队尾后，后面的题会顶上同一个下标。但如果跳的本来就是
       // 最后一题，那个下标上站着的还是它自己 —— 得往后、再绕回队首找一道没做的，
@@ -392,6 +441,7 @@ export function PracticeView({
             showResult={Boolean(currentItem.submitted)}
             soundEnabled={soundEnabled}
             correctStreak={correctStreak}
+            scenarioRun={scenarioRun}
             onSelect={handleSelect}
             onSubmit={handleStudySubmit}
             onSkip={handleSkip}
