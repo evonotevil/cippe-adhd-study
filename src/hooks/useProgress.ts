@@ -120,9 +120,20 @@ export function useProgress() {
     return learningStates[questionId];
   }, [learningStates]);
 
+  /**
+   * 用一份新的进度整体替换本机数据 —— 目前只有设备同步的合并会用到。
+   * progress 和 stats 必须一起换：stats 里的 totalAnswered / correctCount
+   * 是从 progress 数出来的，分两次写会在中间留下一个自相矛盾的状态。
+   */
+  const replaceProgress = useCallback((nextProgress: UserProgress[], nextStats: UserStats) => {
+    setProgress(nextProgress);
+    setStats(nextStats);
+  }, [setProgress, setStats]);
+
   return {
     progress,
     stats,
+    replaceProgress,
     learningStates,
     mistakeIds,
     recordAnswer,

@@ -129,6 +129,7 @@ function App() {
     recordAnswer,
     recordAnswers,
     recordTomatoSession,
+    replaceProgress,
   } = useProgress();
 
   const timer = useTimer(settings.tomatoDuration, settings.breakDuration);
@@ -592,7 +593,13 @@ function App() {
               )}
 
               {currentView === 'settings' && (
-                <Settings settings={settings} onUpdate={setSettings} />
+                <Settings
+                  settings={settings}
+                  onUpdate={setSettings}
+                  progress={progress}
+                  stats={stats}
+                  onMergeSynced={(result) => replaceProgress(result.progress, result.stats)}
+                />
               )}
             </PageTransition>
           )}

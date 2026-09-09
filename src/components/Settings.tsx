@@ -10,12 +10,17 @@ import { useDataTransfer } from '../hooks/useDataTransfer';
 import { QUESTION_COUNT } from '../data/questionCatalog';
 import { useSound } from '../hooks/useSound';
 import { flushPendingWrites } from '../utils/persistentStorage';
+import type { MergeResult } from '../utils/syncCode';
+import { DeviceSync } from './DeviceSync';
 import { Icon, type IconName } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
 
 interface SettingsProps {
   settings: StudySettings;
   onUpdate: (settings: StudySettings) => void;
+  progress: UserProgress[];
+  stats: UserStats;
+  onMergeSynced: (result: MergeResult) => void;
 }
 
 const themeOptions: Array<{ value: StudySettings['theme']; label: string; icon: IconName }> = [
@@ -195,7 +200,7 @@ function DurationField({ label, value, presets, tone, onChange }: DurationFieldP
   );
 }
 
-export function Settings({ settings, onUpdate }: SettingsProps) {
+export function Settings({ settings, onUpdate, progress, stats, onMergeSynced }: SettingsProps) {
   const [localSettings, setLocalSettings] = useState(settings);
   const { exportToFile, importFromFile } = useDataTransfer();
   const { playCorrect } = useSound(localSettings.soundEnabled);
@@ -383,6 +388,10 @@ export function Settings({ settings, onUpdate }: SettingsProps) {
           </div>
         </fieldset>
       </section>
+
+      <div className="h-0.5 bg-line" aria-hidden="true" />
+
+      <DeviceSync progress={progress} stats={stats} onMerged={onMergeSynced} />
 
       <div className="h-0.5 bg-line" aria-hidden="true" />
 
