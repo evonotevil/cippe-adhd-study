@@ -598,7 +598,7 @@ function App() {
                   onUpdate={setSettings}
                   progress={progress}
                   stats={stats}
-                  onMergeSynced={(result) => replaceProgress(result.progress, result.stats)}
+                  onApplySynced={replaceProgress}
                 />
               )}
             </PageTransition>

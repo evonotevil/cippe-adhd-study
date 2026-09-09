@@ -328,6 +328,14 @@ p {
   top: var(--alert-offset, 0px);
 }
 
+/* 吸顶页头会盖住刚滚进视野的控件 —— 键盘 Tab 过去时，焦点环可能整个藏在页头
+   底下，看不见自己停在哪儿。给所有可聚焦元素留一段让位高度，浏览器把它们滚进
+   视野时就会停在页头下方。横幅出现时页头更高，所以要把 --alert-offset 算进去。 */
+:where(a, button, summary, input, select, textarea, [tabindex]) {
+  scroll-margin-top: calc(var(--alert-offset, 0px) + 5.5rem);
+  scroll-margin-bottom: 5rem; /* 底部导航栏同理 */
+}
+
 .app-safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
