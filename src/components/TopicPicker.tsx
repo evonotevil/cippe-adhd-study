@@ -2,10 +2,12 @@ import type { TopicProgress } from '../types';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
 import { ProgressBar } from './ui/ProgressBar';
+import { Spinner } from './ui/Spinner';
+import { usePendingAction } from '../hooks/usePendingAction';
 
 interface TopicPickerProps {
   topics: TopicProgress[];
-  onSelect: (topic: string) => void;
+  onSelect: (topic: string) => void | Promise<void>;
   onBack: () => void;
 }
 
@@ -43,9 +45,11 @@ interface TopicCardProps {
   topic: TopicProgress;
   recommended?: boolean;
   onSelect: (topic: string) => void;
+  loading?: boolean;
+  disabled?: boolean;
 }
 
-function TopicCard({ topic, recommended = false, onSelect }: TopicCardProps) {
+function TopicCard({ topic, recommended = false, onSelect, loading = false, disabled = false }: TopicCardProps) {
   const accuracy = getAccuracy(topic);
   const completed = topic.completed === topic.total && topic.total > 0;
   const started = topic.completed > 0;
@@ -54,7 +58,10 @@ function TopicCard({ topic, recommended = false, onSelect }: TopicCardProps) {
     <button
       type="button"
       onClick={() => onSelect(topic.topic)}
-      className={`group flex min-h-[96px] w-full items-center gap-4 rounded-[1.25rem] border-2 px-4 py-3 text-left transition-[transform,box-shadow,border-color] duration-150 active:translate-y-[2px] ${
+      disabled={disabled}
+      aria-disabled={loading || undefined}
+      aria-busy={loading || undefined}
+      className={`group flex min-h-[96px] w-full items-center gap-4 rounded-[1.25rem] border-2 px-4 py-3 text-left transition-[transform,box-shadow,border-color] duration-150 active:translate-y-[2px] disabled:cursor-not-allowed ${
         recommended
           ? 'border-brand-strong bg-brand-soft shadow-[0_4px_0_var(--ui-brand-shadow)] active:shadow-[0_1px_0_var(--ui-brand-shadow)]'
           : 'border-line bg-surface shadow-[0_3px_0_var(--ui-line-strong)] hover:border-brand-strong active:shadow-[0_1px_0_var(--ui-line-strong)]'
@@ -69,7 +76,9 @@ function TopicCard({ topic, recommended = false, onSelect }: TopicCardProps) {
               : 'bg-surface-soft text-muted'
         }`}
       >
-        <Icon name={completed ? 'check' : started ? 'play' : 'book'} size={24} />
+        {loading
+          ? <Spinner size={21} />
+          : <Icon name={completed ? 'check' : started ? 'play' : 'book'} size={24} />}
       </span>
 
       <span className="min-w-0 flex-1">
@@ -89,7 +98,7 @@ function TopicCard({ topic, recommended = false, onSelect }: TopicCardProps) {
         <span className="mt-2 flex items-center justify-between gap-3 text-xs font-bold text-muted">
           {/* 数量已经由右上角的 x/y 和进度条表达，这里只补它们说不了的：正确率。 */}
           <span>{completed ? '已完成一轮' : started ? '进行中' : '尚未开始'}</span>
-          <span>{accuracy === null ? '开始学习' : `正确率 ${accuracy}%`}</span>
+          <span>{loading ? '正在准备…' : accuracy === null ? '开始学习' : `正确率 ${accuracy}%`}</span>
         </span>
       </span>
       <Icon name="chevron-right" size={21} className="shrink-0 text-faint group-hover:text-brand-strong" />
@@ -98,6 +107,11 @@ function TopicCard({ topic, recommended = false, onSelect }: TopicCardProps) {
 }
 
 export function TopicPicker({ topics, onSelect, onBack }: TopicPickerProps) {
+  const { pendingKey, run } = usePendingAction();
+  // key 用 topic 名字，这样只有被点的那张卡转圈，其余的只是禁用。
+  const select = (topic: string) => { void run(topic, () => onSelect(topic)); };
+  const busy = pendingKey !== null;
+
   const recommendedTopic = getRecommendedTopic(topics);
   const otherTopics = topics.filter((topic) => topic.topic !== recommendedTopic?.topic);
 
@@ -127,7 +141,13 @@ export function TopicPicker({ topics, onSelect, onBack }: TopicPickerProps) {
               {getRecommendationReason(recommendedTopic)}
             </p>
           </div>
-          <TopicCard topic={recommendedTopic} recommended onSelect={onSelect} />
+          <TopicCard
+            topic={recommendedTopic}
+            recommended
+            onSelect={select}
+            loading={pendingKey === recommendedTopic.topic}
+            disabled={busy && pendingKey !== recommendedTopic.topic}
+          />
         </section>
       ) : (
         <p className="rounded-2xl bg-surface-soft p-4 text-sm font-semibold text-muted">
@@ -147,7 +167,12 @@ export function TopicPicker({ topics, onSelect, onBack }: TopicPickerProps) {
           <ul className="space-y-3 border-t-2 border-line py-4" aria-label="其余 CIPPE Topic">
             {otherTopics.map((topic) => (
               <li key={topic.topic}>
-                <TopicCard topic={topic} onSelect={onSelect} />
+                <TopicCard
+                  topic={topic}
+                  onSelect={select}
+                  loading={pendingKey === topic.topic}
+                  disabled={busy && pendingKey !== topic.topic}
+                />
               </li>
             ))}
           </ul>

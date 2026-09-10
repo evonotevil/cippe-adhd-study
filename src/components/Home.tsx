@@ -2,6 +2,8 @@ import type { PracticeSession } from '../types';
 import { getSessionTitle } from '../domain/practice';
 import { Pressable } from './ui/Pressable';
 import { ProgressBar } from './ui/ProgressBar';
+import { Spinner } from './ui/Spinner';
+import { usePendingAction } from '../hooks/usePendingAction';
 import { Icon, type IconName } from './ui/Icons';
 
 interface HomeProps {
@@ -11,13 +13,13 @@ interface HomeProps {
   todayCorrect: number;
   topicCount: number;
   isFirstRun: boolean;
-  isStarting: boolean;
   activeSession: PracticeSession | null;
-  onStartRecommended: () => void;
-  onStartMistakes: () => void;
+  // 这三个要等题库加载，所以允许返回 Promise —— 按钮据此决定转圈到什么时候。
+  onStartRecommended: () => void | Promise<void>;
+  onStartMistakes: () => void | Promise<void>;
+  onResume: () => void | Promise<void>;
   onOpenTopics: () => void;
   onOpenRandom: () => void;
-  onResume: () => void;
 }
 
 interface ModeRowProps {
@@ -27,6 +29,7 @@ interface ModeRowProps {
   detail: string;
   tone: 'danger' | 'info' | 'warning';
   disabled?: boolean;
+  loading?: boolean;
   onClick: () => void;
 }
 
@@ -43,6 +46,7 @@ function ModeRow({
   detail,
   tone,
   disabled = false,
+  loading = false,
   onClick,
 }: ModeRowProps) {
   return (
@@ -50,11 +54,15 @@ function ModeRow({
       variant="neutral"
       block
       disabled={disabled}
+      /* 不传 loading：ModeRow 自己在左侧图标位画 spinner，再让 Pressable 画一个
+         就成了两个转圈。这里只要 aria 语义。 */
+      aria-disabled={loading || undefined}
+      aria-busy={loading || undefined}
       onClick={onClick}
       className="min-h-[84px] justify-start px-4 py-3 text-left sm:px-5"
     >
       <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${toneStyles[tone]}`}>
-        <Icon name={icon} size={25} />
+        {loading ? <Spinner size={22} /> : <Icon name={icon} size={25} />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-start justify-between gap-3">
@@ -63,7 +71,9 @@ function ModeRow({
         </span>
         <span className="mt-1 block text-sm font-semibold leading-snug text-muted">{description}</span>
       </span>
-      {!disabled && <Icon name="chevron-right" size={20} className="shrink-0 text-faint" />}
+      {loading
+        ? <span className="shrink-0 text-xs font-extrabold text-muted">正在准备…</span>
+        : !disabled && <Icon name="chevron-right" size={20} className="shrink-0 text-faint" />}
     </Pressable>
   );
 }
@@ -75,7 +85,6 @@ export function Home({
   todayCorrect,
   topicCount,
   isFirstRun,
-  isStarting,
   activeSession,
   onStartRecommended,
   onStartMistakes,
@@ -83,6 +92,11 @@ export function Home({
   onOpenRandom,
   onResume,
 }: HomeProps) {
+  const { pendingKey, run } = usePendingAction();
+  const busy = pendingKey !== null;
+  // 正在加载的那个保持可聚焦（只加 aria-disabled），其余的才真正 disabled。
+  const blocked = (key: string) => busy && pendingKey !== key;
+
   const accuracy = todayAnswered > 0 ? Math.round((todayCorrect / todayAnswered) * 100) : 0;
   const activeAnswered = activeSession?.mode === 'exam'
     ? activeSession.items.filter((item) => item.selectedAnswer).length
@@ -106,12 +120,15 @@ export function Home({
       {activeSession && (
         <button
           type="button"
-          onClick={onResume}
-          className="w-full rounded-[1.25rem] border-2 border-info-shadow bg-info-soft p-4 text-left shadow-[0_4px_0_var(--ui-info-shadow)] transition-[transform,box-shadow] duration-150 active:translate-y-[3px] active:shadow-[0_1px_0_var(--ui-info-shadow)]"
+          onClick={() => { void run('resume', onResume); }}
+          disabled={blocked('resume')}
+          aria-disabled={pendingKey === 'resume' || undefined}
+          aria-busy={pendingKey === 'resume' || undefined}
+          className="w-full rounded-[1.25rem] border-2 border-info-shadow bg-info-soft p-4 text-left shadow-[0_4px_0_var(--ui-info-shadow)] transition-[transform,box-shadow] duration-150 active:translate-y-[3px] active:shadow-[0_1px_0_var(--ui-info-shadow)] disabled:cursor-not-allowed"
         >
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-info text-white">
-              <Icon name="play" size={21} />
+              {pendingKey === 'resume' ? <Spinner size={19} /> : <Icon name="play" size={21} />}
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-xs font-extrabold text-info-ink">继续未完成练习</span>
@@ -136,16 +153,23 @@ export function Home({
           variant="featured"
           block
           size="lg"
-          onClick={onStartRecommended}
-          disabled={isStarting}
+          onClick={() => { void run('recommended', onStartRecommended); }}
+          disabled={blocked('recommended')}
+          /* 同 ModeRow：spinner 画在下面那个大圆图标位里，不要让 Pressable 再画一个 */
+          aria-disabled={pendingKey === 'recommended' || undefined}
+          aria-busy={pendingKey === 'recommended' || undefined}
           className="min-h-[116px] justify-start px-5 py-5 text-left"
         >
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface/65 text-brand-ink">
-            <Icon name={unseenCount > 0 ? 'play' : 'refresh'} size={29} />
+            {pendingKey === 'recommended'
+              ? <Spinner size={26} />
+              : <Icon name={unseenCount > 0 ? 'play' : 'refresh'} size={29} />}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-xl font-black tracking-[-0.02em]">
-              {isStarting ? '正在准备题目…' : isFirstRun ? '开始第一组 5 题' : '开始推荐 5 题'}
+              {pendingKey === 'recommended'
+                ? '正在准备题目…'
+                : isFirstRun ? '开始第一组 5 题' : '开始推荐 5 题'}
             </span>
             <span className="mt-1 block text-sm font-bold leading-snug opacity-80">
               {isFirstRun
@@ -173,8 +197,9 @@ export function Home({
             }
             detail={mistakeCount > 0 ? `${mistakeCount} 题` : isFirstRun ? '还没有' : '已清空'}
             tone="danger"
-            disabled={mistakeCount === 0}
-            onClick={onStartMistakes}
+            disabled={mistakeCount === 0 || blocked('mistakes')}
+            loading={pendingKey === 'mistakes'}
+            onClick={() => { void run('mistakes', onStartMistakes); }}
           />
           <ModeRow
             icon="topics"
@@ -182,6 +207,7 @@ export function Home({
             description="按掌握情况选择一个 Topic"
             detail={`${topicCount} 个`}
             tone="info"
+            disabled={busy}
             onClick={onOpenTopics}
           />
           <ModeRow
@@ -190,6 +216,7 @@ export function Home({
             description="自选题数、范围和答题模式"
             detail="5 / 10 / 20"
             tone="warning"
+            disabled={busy}
             onClick={onOpenRandom}
           />
         </div>

@@ -2,17 +2,19 @@ import { useMemo, useState } from 'react';
 import type { RandomPracticeSettings, TopicProgress } from '../types';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
+import { usePendingAction } from '../hooks/usePendingAction';
 
 interface RandomSetupProps {
   initialSettings: RandomPracticeSettings;
   topics: TopicProgress[];
-  onStart: (settings: RandomPracticeSettings) => void;
+  onStart: (settings: RandomPracticeSettings) => void | Promise<void>;
   onBack: () => void;
 }
 
 const COUNT_PRESETS = [5, 10, 20];
 
 export function RandomSetup({ initialSettings, topics, onStart, onBack }: RandomSetupProps) {
+  const { pendingKey, run } = usePendingAction();
   const [count, setCount] = useState(initialSettings.count);
   const [topic, setTopic] = useState<string | null>(initialSettings.topic);
   const [mode, setMode] = useState(initialSettings.mode);
@@ -165,7 +167,10 @@ export function RandomSetup({ initialSettings, topics, onStart, onBack }: Random
           variant="primary"
           size="lg"
           block
-          onClick={() => onStart({ count: effectiveCount, topic, mode })}
+          loading={pendingKey === 'start'}
+          onClick={() => {
+            void run('start', () => onStart({ count: effectiveCount, topic, mode }));
+          }}
           disabled={availableCount === 0}
           trailing={<Icon name="arrow-right" size={21} />}
         >

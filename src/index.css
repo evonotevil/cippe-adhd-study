@@ -230,7 +230,13 @@ p {
   filter: brightness(1.02);
 }
 
-.pressable:active:not(:disabled),
+/* aria-disabled 是「正在忙」而不是「不可用」：按钮保持正常配色和焦点环（不然
+   键盘用户会丢失位置），但不该再有按下去的手感。 */
+.pressable[aria-disabled="true"] {
+  cursor: default;
+}
+
+.pressable:active:not(:disabled):not([aria-disabled="true"]),
 .pressable[data-pressed="true"] {
   box-shadow: 0 1px 0 var(--press-shadow);
   /* ghost 的 depth 是 0，不夹住的话按下会变成 -1px，按钮反而往上跳。 */
@@ -434,5 +440,13 @@ p {
   .pressable:active:not(:disabled),
   .pressable[data-pressed="true"] {
     transform: none;
+  }
+
+  /* 加载指示器是这条规则的例外。上面把动画压到 0.01ms 是为了让装饰性动效
+     立刻结束，但转圈是 spinner 唯一要传达的信息 —— 冻住之后它就只是一个
+     缺了一角的静止圆环，反而更费解。放慢到 1.4s 匀速：不晃眼，也还在动，
+     "正在忙"这件事仍然说得出来。 */
+  [data-spinner] {
+    animation-duration: 1.4s !important;
   }
 }

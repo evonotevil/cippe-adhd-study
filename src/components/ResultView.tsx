@@ -4,12 +4,13 @@ import { getLongestCorrectStreak } from '../utils/streak';
 import { Celebration } from './ui/Celebration';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
+import { usePendingAction } from '../hooks/usePendingAction';
 
 interface ResultViewProps {
   session: PracticeSession;
   remainingMistakeCount: number;
-  onReviewMistakes: (questionIds: number[]) => void;
-  onAgain: () => void;
+  onReviewMistakes: (questionIds: number[]) => void | Promise<void>;
+  onAgain: () => void | Promise<void>;
   onHome: () => void;
 }
 
@@ -20,6 +21,7 @@ export function ResultView({
   onAgain,
   onHome,
 }: ResultViewProps) {
+  const { pendingKey, run } = usePendingAction();
   const correct = session.attempts.filter((attempt) => attempt.isCorrect).length;
   const denominator = session.mode === 'exam' ? session.items.length : session.attempts.length;
   const accuracy = denominator > 0 ? Math.round((correct / denominator) * 100) : 0;
@@ -90,7 +92,8 @@ export function ResultView({
             variant="neutral"
             size="lg"
             block
-            onClick={() => onReviewMistakes(wrongQuestionIds)}
+            loading={pendingKey === 'review'}
+            onClick={() => { void run('review', () => onReviewMistakes(wrongQuestionIds)); }}
             leading={<Icon name="refresh" size={21} />}
           >
             复习本次错题（{wrongQuestionIds.length}）
@@ -100,7 +103,8 @@ export function ResultView({
           variant="primary"
           size="lg"
           block
-          onClick={onAgain}
+          loading={pendingKey === 'again'}
+          onClick={() => { void run('again', onAgain); }}
           leading={<Icon name="rotate" size={21} />}
         >
           再来一组

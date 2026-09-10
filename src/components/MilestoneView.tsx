@@ -2,15 +2,17 @@ import type { PracticeSession } from '../types';
 import { Celebration, ScoreRing } from './ui/Celebration';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
+import { usePendingAction } from '../hooks/usePendingAction';
 
 interface MilestoneViewProps {
   session: PracticeSession;
   reinforcementCount: number | null;
-  onContinue: () => void;
+  onContinue: () => void | Promise<void>;
   onFinish: () => void;
 }
 
 export function MilestoneView({ session, reinforcementCount, onContinue, onFinish }: MilestoneViewProps) {
+  const { pendingKey, run } = usePendingAction();
   const correct = session.attempts.filter((attempt) => attempt.isCorrect).length;
   const accuracy = session.attempts.length > 0
     ? Math.round((correct / session.attempts.length) * 100)
@@ -54,7 +56,8 @@ export function MilestoneView({ session, reinforcementCount, onContinue, onFinis
           variant="primary"
           size="lg"
           block
-          onClick={onContinue}
+          loading={pendingKey === 'continue'}
+          onClick={() => { void run('continue', onContinue); }}
           leading={<Icon name="refresh" size={21} />}
         >
           继续巩固{reinforcementCount ? `（${reinforcementCount} 题）` : ''}

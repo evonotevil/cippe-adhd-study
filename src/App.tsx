@@ -10,6 +10,7 @@ import { Timer } from './components/Timer';
 import { Achievements } from './components/Achievements';
 import { Settings } from './components/Settings';
 import { PageTransition } from './components/ui/PageTransition';
+import { ProgressBar } from './components/ui/ProgressBar';
 import { Icon, type IconName } from './components/ui/Icons';
 import { Pressable } from './components/ui/Pressable';
 import { useProgress } from './hooks/useProgress';
@@ -40,6 +41,11 @@ function loadQuestionBank(): Promise<Question[]> {
   questionBankPromise ??= import('./data/questions')
     .then(({ QUESTIONS }) => QUESTIONS)
     .catch((error) => {
+      // 这里把缓存清掉，只是让下一次调用能快速失败、不至于挂在一个已经拒绝的
+      // promise 上。它并不能让重试成功：浏览器的 module map 会把「这个模块
+      // 加载失败过」永久记下来，同一个 specifier 的 import() 之后直接返回同
+      // 一个 rejection，连请求都不会再发（实测点重试后网络请求数没有增加）。
+      // 所以真正的重试入口是整页重载，见界面上那个「重新载入」按钮。
       questionBankPromise = null;
       throw error;
     });
@@ -104,7 +110,6 @@ function App() {
   const hasMounted = useRef(false);
   const [currentView, setCurrentView] = useState<View>('home');
   const [questions, setQuestions] = useState<Question[] | null>(null);
-  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
   const [transitionDirection, setTransitionDirection] = useState<-1 | 0 | 1>(1);
   const navigate = useCallback((view: View, direction: -1 | 0 | 1 = 1) => {
@@ -229,17 +234,14 @@ function App() {
   const ensureQuestionBank = useCallback(async () => {
     if (questions) return questions;
 
-    setIsLoadingQuestions(true);
     setQuestionLoadError(null);
     try {
       const loadedQuestions = await loadQuestionBank();
       setQuestions(loadedQuestions);
       return loadedQuestions;
     } catch {
-      setQuestionLoadError('题库加载失败，请检查网络后重试。');
+      setQuestionLoadError('题库加载失败，请检查网络后重新载入页面。');
       return null;
-    } finally {
-      setIsLoadingQuestions(false);
     }
   }, [questions]);
 
@@ -473,19 +475,13 @@ function App() {
             </div>
 
             <div className={`flex items-center gap-2 pb-2.5 ${isFirstRun ? 'hidden' : 'mt-2'}`}>
-              <div
-                className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-soft"
-                role="progressbar"
-                aria-valuenow={completedCount}
-                aria-valuemin={0}
-                aria-valuemax={QUESTION_COUNT}
-                aria-label={`题库进度 ${completedCount} / ${QUESTION_COUNT} 题`}
-              >
-                <div
-                  className="h-full rounded-full bg-brand-strong transition-[width] duration-500"
-                  style={{ width: `${Math.round((completedCount / QUESTION_COUNT) * 100)}%` }}
-                />
-              </div>
+              <ProgressBar
+                value={completedCount}
+                max={QUESTION_COUNT}
+                label={`题库进度 ${completedCount} / ${QUESTION_COUNT} 题`}
+                tone="brand"
+                className="h-1.5 flex-1"
+              />
               <span className="shrink-0 text-[11px] font-extrabold tabular-nums text-muted" aria-hidden="true">
                 {completedCount}/{QUESTION_COUNT}
               </span>
@@ -519,7 +515,6 @@ function App() {
                   todayCorrect={todayStats.correct}
                   topicCount={topicProgress.length}
                   isFirstRun={isFirstRun}
-                  isStarting={isLoadingQuestions}
                   activeSession={activeSession}
                   onStartRecommended={startRecommended}
                   onStartMistakes={startMistakes}
@@ -605,9 +600,23 @@ function App() {
           )}
         </AnimatePresence>
         {questionLoadError && (
-          <p role="alert" className="mx-auto mt-4 max-w-2xl rounded-xl bg-danger-soft px-4 py-3 text-sm font-bold text-danger-ink">
-            {questionLoadError}
-          </p>
+          <div
+            role="alert"
+            className="mx-auto mt-4 flex max-w-2xl flex-col gap-3 rounded-xl bg-danger-soft px-4 py-3 text-sm font-bold text-danger-ink sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span>{questionLoadError}</span>
+            {/* 只能整页重载：一旦模块加载失败，浏览器会把这个失败记在 module map 里，
+                原地重试连请求都发不出去。学习进度都在 localStorage，重载不会丢东西。 */}
+            <Pressable
+              variant="danger-soft"
+              size="sm"
+              className="shrink-0"
+              leading={<Icon name="refresh" size={17} />}
+              onClick={() => { window.location.reload(); }}
+            >
+              重新载入
+            </Pressable>
+          </div>
         )}
       </main>
 
