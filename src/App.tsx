@@ -438,9 +438,13 @@ function App() {
                 aria-label="返回首页"
                 className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl pr-2 font-black tracking-[-0.02em] text-ink"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-brand-ink shadow-[0_3px_0_var(--ui-brand-strong)]">
-                  <Icon name="logo" size={21} />
-                </span>
+                <img
+                  src={`${import.meta.env.BASE_URL}favicon.svg`}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="size-9 rounded-xl shadow-[0_3px_0_var(--ui-brand-strong)]"
+                />
                 <span className="max-[359px]:hidden">CIPPE</span>
               </button>
 
