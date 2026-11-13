@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="53.4" height="62.6" viewBox="0 0 53.4 62.6" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="book">
+<path id="Vector" d="M6.6 2.4H46.2C51 2.4 53.4 4.8 53.4 9.6V51C53.4 56.2 50.8 58.8 45.6 58.8H7.8C2.6 58.8 0 56.2 0 51V10.2C0 5 2.2 2.4 6.6 2.4Z" fill="#244A13"/>
+<path id="Vector_2" d="M7.2 47.4H49.2V51.6C49.2 53.6 48 54.6 45.6 54.6H7.8C5 54.6 3.6 53.4 3.6 51C3.6 48.6 4.8 47.4 7.2 47.4Z" fill="white"/>
+<path id="Vector_3" d="M36 49.8H42.6V61.8C42.6 62.6 42.2 62.8 41.4 62.4L39.3 60.6L37.2 62.4C36.4 62.8 36 62.6 36 61.8V49.8Z" fill="#FF9600"/>
+<path id="Vector_4" d="M7.2 0H45C49 0 51 2 51 6V45C51 49 49 51 45 51H6.6C2.2 51 0 48.8 0 44.4V7.2C0 2.4 2.4 0 7.2 0Z" fill="#58CC02"/>
+<path id="Vector_5" d="M5.4 7.2V43.8" stroke-width="1.8" stroke-linecap="round" stroke="#244A13"/>
+<path id="Vector_6" d="M26.4 9C30 11.4 34 12.8 38.4 13.2V22.2C38.4 28.2 34.4 32.8 26.4 36C18.4 32.8 14.4 28.2 14.4 22.2V13.2C18.8 12.8 22.8 11.4 26.4 9Z" fill="white"/>
+<path id="Vector_7" d="M20.4 21.6L24.6 25.8L32.4 17.4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke="#226EC0"/>
+<path id="Vector_8" d="M18.6 39.6V40.8M34.2 39.6V40.8" stroke-width="2.1" stroke-linecap="round" stroke="#244A13"/>
+<path id="Vector_9" d="M23.4 42.6C25.4 45 27.4 45 29.4 42.6" stroke-width="1.8" stroke-linecap="round" stroke="#244A13"/>
+</g>
+</svg>

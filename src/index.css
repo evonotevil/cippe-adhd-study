@@ -1,46 +1,53 @@
 @import "tailwindcss";
 
 :root {
-  --font-app: ui-rounded, "SF Pro Rounded", "PingFang SC", "Microsoft YaHei UI", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --app-nav-height: 88px;
+  --font-exam: Inter, var(--font-app);
+  --font-display: Nunito, "SF Pro Rounded", ui-rounded, system-ui, sans-serif;
+  --font-app: "Noto Sans SC", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
 
-  --ui-bg: oklch(0.982 0.008 145);
+  --ui-brand-line: #ceeab9;
+  --ui-info-line: #c6e9f9;
+  --ui-warning-line: #f5dfa9;
+  --ui-danger-line: #f6cbcb;
+  --ui-bg: #fff;
   --ui-surface: oklch(1 0 0);
-  --ui-surface-soft: oklch(0.958 0.018 145);
+  --ui-surface-soft: #f7f7f7;
   --ui-surface-raised: oklch(1 0 0);
-  --ui-ink: oklch(0.245 0.028 250);
-  --ui-muted: oklch(0.455 0.035 250);
-  --ui-faint: oklch(0.62 0.025 250);
-  --ui-line: oklch(0.86 0.025 145);
-  --ui-line-strong: oklch(0.76 0.04 145);
+  --ui-ink: #3c3c3c;
+  --ui-muted: #6d6d6d;
+  --ui-faint: #757575;
+  --ui-line: #e5e5e5;
+  --ui-line-strong: #ccc;
 
-  --ui-brand: oklch(0.76 0.2 137);
-  --ui-brand-hover: oklch(0.72 0.2 137);
-  --ui-brand-strong: oklch(0.515 0.155 142);
-  --ui-brand-shadow: oklch(0.405 0.13 142);
-  --ui-brand-soft: oklch(0.94 0.07 140);
-  --ui-brand-ink: oklch(0.25 0.08 142);
-  --ui-brand-soft-ink: oklch(0.29 0.095 142);
-  --ui-primary-ink: oklch(1 0 0);
+  --ui-brand: #58cc02;
+  --ui-brand-hover: #51bc02;
+  --ui-brand-strong: #397a16;
+  --ui-brand-shadow: #46a302;
+  --ui-brand-soft: #f1faea;
+  --ui-brand-ink: #244a13;
+  --ui-brand-soft-ink: #397a16;
+  --ui-primary-ink: #244a13;
 
-  --ui-info: oklch(0.55 0.18 250);
-  --ui-info-shadow: oklch(0.43 0.16 252);
-  --ui-info-soft: oklch(0.94 0.05 250);
-  --ui-info-ink: oklch(0.28 0.1 252);
+  --ui-info: #14789f;
+  --ui-info-shadow: #0e5a78;
+  --ui-info-soft: #eff9fe;
+  --ui-info-ink: #14789f;
 
   --ui-warning: oklch(0.79 0.15 78);
   --ui-warning-shadow: oklch(0.62 0.13 68);
-  --ui-warning-soft: oklch(0.95 0.055 82);
+  --ui-warning-soft: #fff8e5;
   /* Ink for warning-soft surfaces and for warning text on the page background.
      Flips with the theme, because those surfaces flip with the theme. */
-  --ui-warning-ink: oklch(0.33 0.085 62);
+  --ui-warning-ink: #855516;
   /* Ink for the solid --ui-warning fill. That fill is light in every theme, so
      this ink stays dark in every theme and is never overridden below. */
   --ui-warning-solid-ink: oklch(0.33 0.085 62);
 
-  --ui-danger: oklch(0.58 0.2 24);
-  --ui-danger-shadow: oklch(0.44 0.17 23);
-  --ui-danger-soft: oklch(0.94 0.05 24);
-  --ui-danger-ink: oklch(0.31 0.13 23);
+  --ui-danger: #b83c3c;
+  --ui-danger-shadow: #923232;
+  --ui-danger-soft: #fff0f0;
+  --ui-danger-ink: #9f3030;
 
   --ui-shadow-color: oklch(0.28 0.03 250 / 0.1);
   --ui-focus: oklch(0.45 0.17 250);
@@ -48,8 +55,8 @@
   /* Accent text on the page or card background. --ui-info and --ui-danger are
      solid-fill colors carrying white ink; a single value cannot clear 4.5:1
      against both white and a dark background, so text gets its own token. */
-  --ui-info-accent: oklch(0.52 0.18 250);
-  --ui-danger-accent: oklch(0.55 0.2 24);
+  --ui-info-accent: #14789f;
+  --ui-danger-accent: #b83c3c;
 }
 
 [data-theme="dark"] {
@@ -114,9 +121,45 @@
   --ui-focus: oklch(0.43 0.14 238);
 }
 
+[data-theme="dark"], [data-theme="eye-care"] {
+  --ui-brand-line: color-mix(in srgb, var(--ui-line) 72%, var(--ui-brand-strong));
+  --ui-info-line: color-mix(in srgb, var(--ui-line) 72%, var(--ui-info));
+  --ui-warning-line: color-mix(in srgb, var(--ui-line) 72%, var(--ui-warning));
+  --ui-danger-line: color-mix(in srgb, var(--ui-line) 72%, var(--ui-danger));
+}
+
+.app-metric { font-family: var(--font-display); }
+.app-exam-font,
+.app-question,
+.app-answer { font-family: var(--font-exam); }
+
+.app-question {
+  font-size: var(--type-question, 1.0625rem);
+  line-height: var(--type-question-leading, 1.625rem);
+  font-weight: 600;
+}
+
+.app-answer {
+  font-size: var(--type-answer, .9375rem);
+  line-height: var(--type-answer-leading, 1.375rem);
+  font-weight: 400;
+}
+.app-page { min-height: 100vh; min-height: 100dvh; }
+.app-bottom-nav { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+.app-content-with-nav { padding-bottom: calc(var(--app-nav-height) + 24px + env(safe-area-inset-bottom)); }
+.app-has-timer-alert .app-safe-top { padding-top: 0; }
+
+@media (min-width: 48rem) {
+  .app-content-with-nav { padding-bottom: 32px; }
+}
+
 @theme inline {
   --font-sans: var(--font-app);
   --color-app: var(--ui-bg);
+  --color-brand-line: var(--ui-brand-line);
+  --color-info-line: var(--ui-info-line);
+  --color-warning-line: var(--ui-warning-line);
+  --color-danger-line: var(--ui-danger-line);
   --color-surface: var(--ui-surface);
   --color-surface-soft: var(--ui-surface-soft);
   --color-surface-raised: var(--ui-surface-raised);
@@ -199,134 +242,124 @@ p {
 }
 
 .pressable {
-  --press-depth: 4px;
   --press-fill: var(--ui-surface);
-  --press-border: var(--ui-line-strong);
-  --press-shadow: var(--ui-line-strong);
+  --press-border: var(--ui-line);
   --press-ink: var(--ui-ink);
   position: relative;
   display: inline-flex;
-  min-height: 48px;
+  min-height: 56px;
+  min-width: 0;
   align-items: center;
   justify-content: center;
-  gap: 0.625rem;
+  gap: 12px;
+  padding: 4px 16px;
   border: 2px solid var(--press-border);
-  border-radius: 1rem;
+  border-bottom-width: 5px;
+  border-radius: 16px;
   background: var(--press-fill);
-  box-shadow: 0 var(--press-depth) 0 var(--press-shadow);
   color: var(--press-ink);
-  font-weight: 800;
-  line-height: 1.2;
-  transform: translateY(0);
-  transition:
-    transform 140ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 140ms cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-.pressable:hover:not(:disabled) {
-  filter: brightness(1.02);
-}
-
-/* aria-disabled 是「正在忙」而不是「不可用」：按钮保持正常配色和焦点环（不然
-   键盘用户会丢失位置），但不该再有按下去的手感。 */
-.pressable[aria-disabled="true"] {
-  cursor: default;
+  font-weight: 700;
+  font-size: var(--type-body-sm, 14px);
+  line-height: 1.5714;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
 .pressable:active:not(:disabled):not([aria-disabled="true"]),
-.pressable[data-pressed="true"] {
-  box-shadow: 0 1px 0 var(--press-shadow);
-  /* ghost 的 depth 是 0，不夹住的话按下会变成 -1px，按钮反而往上跳。 */
-  transform: translateY(max(0px, calc(var(--press-depth) - 1px)));
+.pressable[data-pressed="true"]:not(:disabled):not([aria-disabled="true"]) {
+  border-bottom-width: 2px;
 }
 
 .pressable:disabled {
+  --press-fill: var(--ui-surface-soft);
+  --press-border: var(--ui-line);
+  --press-ink: var(--ui-muted);
   cursor: not-allowed;
-  filter: saturate(0.25);
-  opacity: 0.55;
 }
 
-.pressable--featured {
+.pressable[aria-busy="true"] {
+  cursor: progress;
+}
+
+.pressable--featured,
+.pressable--primary {
   --press-fill: var(--ui-brand);
-  --press-border: var(--ui-brand-strong);
-  --press-shadow: var(--ui-brand-strong);
+  --press-border: var(--ui-brand-shadow);
   --press-ink: var(--ui-brand-ink);
 }
 
-.pressable--primary {
-  --press-fill: var(--ui-brand-strong);
-  --press-border: var(--ui-brand-shadow);
-  --press-shadow: var(--ui-brand-shadow);
-  --press-ink: var(--ui-primary-ink);
-}
-
-.pressable--secondary {
-  --press-fill: var(--ui-info);
-  --press-border: var(--ui-info-shadow);
-  --press-shadow: var(--ui-info-shadow);
-  --press-ink: oklch(1 0 0);
-}
-
-.pressable--danger {
-  --press-fill: var(--ui-danger);
-  --press-border: var(--ui-danger-shadow);
-  --press-shadow: var(--ui-danger-shadow);
-  --press-ink: oklch(1 0 0);
+.pressable--danger,
+.pressable--danger-soft {
+  --press-fill: var(--ui-danger-soft);
+  --press-border: var(--ui-danger);
+  --press-ink: var(--ui-danger-accent);
 }
 
 .pressable--warning {
   --press-fill: var(--ui-warning);
   --press-border: var(--ui-warning-shadow);
-  --press-shadow: var(--ui-warning-shadow);
   --press-ink: var(--ui-warning-solid-ink);
 }
 
-.pressable--neutral {
-  --press-fill: var(--ui-surface);
-  --press-border: var(--ui-line);
-  --press-shadow: var(--ui-line-strong);
-  --press-ink: var(--ui-ink);
-}
-
-.pressable--danger-soft {
-  --press-depth: 3px;
-  --press-fill: var(--ui-danger-soft);
-  --press-border: var(--ui-danger-soft);
-  --press-shadow: var(--ui-danger);
-  --press-ink: var(--ui-danger-ink);
-}
-
 .pressable--ghost {
-  --press-depth: 0px;
   --press-fill: transparent;
   --press-border: transparent;
-  --press-shadow: transparent;
   --press-ink: var(--ui-muted);
 }
 
 .pressable--sm {
   min-height: 44px;
-  border-radius: 0.875rem;
-  padding: 0.625rem 0.875rem;
-  font-size: 0.875rem;
-}
-
-.pressable--md {
-  padding: 0.8rem 1.125rem;
-  font-size: 0.95rem;
-}
-
-.pressable--lg {
-  min-height: 54px;
-  padding: 0.95rem 1.25rem;
-  font-size: 1rem;
+  border-radius: 12px;
+  padding-inline: 12px;
 }
 
 .pressable--block {
   width: 100%;
+}
+
+.v2-chip {
+  min-height: 44px;
+  min-width: 0;
+  border: 2px solid var(--ui-line);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  padding-inline: 8px;
+  color: var(--ui-muted);
+  font-weight: 700;
+  font-size: var(--type-body-sm, 14px);
+  line-height: 1.5714;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.v2-chip[aria-pressed="true"], .v2-chip[aria-current="page"] {
+  border-color: var(--ui-info-accent);
+  background: var(--ui-info-soft);
+  color: var(--ui-info-accent);
+}
+
+.v2-chip:disabled, .v2-chip[aria-disabled="true"] {
+  border-color: var(--ui-line);
+  background: var(--ui-surface-soft);
+  color: var(--ui-muted);
+  cursor: not-allowed;
+}
+
+.v2-field {
+  width: 100%;
+  min-height: 56px;
+  border: 2px solid var(--ui-line);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  padding: 12px 16px;
+  color: var(--ui-ink);
+  font-size: var(--type-body, 16px);
+  line-height: 1.5;
+}
+
+.v2-field::placeholder { color: var(--ui-muted); }
+.v2-field:focus { border-color: var(--ui-info-accent); }
+.v2-field[aria-invalid="true"] {
+  border-color: var(--ui-danger-accent);
+  color: var(--ui-danger-accent);
 }
 
 /* 番茄钟提示横幅出现时，吸顶的页头整体下移让位。 */
@@ -367,9 +400,14 @@ p {
   --type-lead: 1.0625rem;
   --type-card-title: 1.125rem;
   --type-section: 1.375rem;
-  --type-page-title: 1.625rem;
+  --type-page-title: 1.5rem;
   --type-display: 2rem;
   --type-timer: 2.75rem;
+  --type-page-title-leading: 2rem;
+  --type-question: 1rem;
+  --type-question-leading: 1.5rem;
+  --type-answer: 0.875rem;
+  --type-answer-leading: 1.3125rem;
 }
 
 [data-font-size="medium"] {
@@ -380,9 +418,14 @@ p {
   --type-lead: 1.125rem;
   --type-card-title: 1.25rem;
   --type-section: 1.5rem;
-  --type-page-title: 1.875rem;
+  --type-page-title: 1.625rem;
   --type-display: 2.25rem;
   --type-timer: 3rem;
+  --type-page-title-leading: 2.25rem;
+  --type-question: 1.0625rem;
+  --type-question-leading: 1.625rem;
+  --type-answer: 0.9375rem;
+  --type-answer-leading: 1.375rem;
 }
 
 [data-font-size="large"] {
@@ -393,33 +436,36 @@ p {
   --type-lead: 1.25rem;
   --type-card-title: 1.375rem;
   --type-section: 1.75rem;
-  --type-page-title: 2.125rem;
+  --type-page-title: 1.875rem;
   --type-display: 2.5rem;
   --type-timer: 3.25rem;
+  --type-page-title-leading: 2.5rem;
+  --type-question: 1.1875rem;
+  --type-question-leading: 1.75rem;
+  --type-answer: 1.0625rem;
+  --type-answer-leading: 1.5625rem;
 }
 
-[data-font-size] {
+html[data-font-size] body {
   font-size: var(--type-body);
   line-height: 1.55;
 }
 
 [data-font-size] .text-\[11px\] { font-size: var(--type-micro); line-height: 1.4; }
-[data-font-size] .text-xs { font-size: var(--type-caption); line-height: 1.45; }
-[data-font-size] .text-sm { font-size: var(--type-body-sm); line-height: 1.55; }
-[data-font-size] .text-base { font-size: var(--type-body); line-height: 1.55; }
+[data-font-size] .text-xs { font-size: var(--type-caption); line-height: 1.5; }
+[data-font-size] .text-sm { font-size: var(--type-body-sm); line-height: 1.57142857; }
+[data-font-size] .text-base { font-size: var(--type-body); line-height: 1.5; }
 [data-font-size] .text-lg { font-size: var(--type-lead); line-height: 1.45; }
-[data-font-size] .text-xl { font-size: var(--type-card-title); line-height: 1.35; }
+[data-font-size] .text-xl { font-size: var(--type-card-title); line-height: 1.4; }
 [data-font-size] .text-2xl { font-size: var(--type-section); line-height: 1.25; }
-[data-font-size] .text-3xl { font-size: var(--type-page-title); line-height: 1.18; }
+[data-font-size] .text-3xl,
+[data-font-size] .text-\[26px\] { font-size: var(--type-page-title); line-height: var(--type-page-title-leading); }
 [data-font-size] .text-4xl { font-size: var(--type-display); line-height: 1.12; }
 [data-font-size] .text-5xl { font-size: var(--type-timer); line-height: 1.05; }
-[data-font-size] .pressable--sm { font-size: var(--type-body-sm); }
-[data-font-size] .pressable--md { font-size: calc(var(--type-body-sm) + 0.075rem); }
-[data-font-size] .pressable--lg { font-size: var(--type-body); }
 
 @media (min-width: 40rem) {
-  [data-font-size] .sm\:text-sm { font-size: var(--type-body-sm); line-height: 1.55; }
-  [data-font-size] .sm\:text-xl { font-size: var(--type-card-title); line-height: 1.35; }
+  [data-font-size] .sm\:text-sm { font-size: var(--type-body-sm); line-height: 1.57142857; }
+  [data-font-size] .sm\:text-xl { font-size: var(--type-card-title); line-height: 1.4; }
 }
 
 * {
@@ -435,11 +481,6 @@ p {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-
-  .pressable:active:not(:disabled),
-  .pressable[data-pressed="true"] {
-    transform: none;
   }
 
   /* 加载指示器是这条规则的例外。上面把动画压到 0.01ms 是为了让装饰性动效

@@ -4,7 +4,7 @@
 
 ![为 ADHD 调优的刷题体验：319 道真题、9 个 Topic、18 项成就](docs/promo/hero.png)
 
-**线上地址：https://evonotevil.github.io/cippe-adhd-study/**
+**线上版本：[经典版](https://evonotevil.github.io/cippe-adhd-study/) · [V2 备考版](https://evonotevil.github.io/cippe-adhd-study/v2/)**
 
 打开网页就能用，不用注册，不用安装。
 
@@ -15,6 +15,14 @@
 用 Safari 打开上面的线上地址，点「分享 → 添加到主屏幕」。如果看到「作为网页 App 打开」开关，保持开启，然后点「添加」。此后点主屏幕上的答题卡片图标即可进入刷题。
 
 如果你已经在 Safari 里刷过题，可以先在「设置」导出学习数据，再从主屏幕打开并导入。
+
+## 30 天备考（V2）
+
+「今日」会推荐下一课；从「备考」可以在学习地图与列表之间切换。每天读学习卡、做一道回忆题，再进入对应练习。路线不绑定考试日期，可以随时回看任意一天。
+
+「练习」提供快速 5 题、专题、随机组卷和错题复习；「我的」集中显示最近练习、成就、专注和学习设置。
+
+「资料索引」可查每份原稿用在哪些天。应用内的学习卡是按主题整理的内容；模拟题来自本站题库。备考路线进度保存在当前设备，可通过「我的 → 学习数据 → 导出学习数据」备份。
 
 ## 五个核心设计
 
@@ -69,9 +77,9 @@ npx tsx scripts/test-sync-code.ts        # 同步编解码与合并的往返测�
 
 推送到 `main` 即自动发布，无需手动构建。
 
-`.github/workflows/deploy.yml` 会在每次推送时执行 `npm ci && npm run build`，并把
-`dist/` 作为 GitHub Pages artifact 发布（Pages 的 Source 设为 GitHub Actions）。
-`dist/` 不纳入版本控制，构建产物只在 CI 中生成。
+`.github/workflows/deploy.yml` 会在每次推送时执行 `npm ci && npm run build:pages`，并把
+`dist-pages/` 作为 GitHub Pages artifact 发布（Pages 的 Source 设为 GitHub Actions）。
+`dist-pages/` 不纳入版本控制。经典版固定使用上一次发布的源码，部署在原地址；V2 使用当前源码，部署在 `/v2/`。两版共用同一域名，同一个浏览器里的历史答题记录可继续使用，未完成的题组各自保存。
 
 ## 数据存储
 

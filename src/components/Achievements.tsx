@@ -8,6 +8,7 @@ import {
 import { QUESTION_COUNT } from '../data/questionCatalog';
 import { Icon, type IconName } from './ui/Icons';
 import { ProgressBar } from './ui/ProgressBar';
+import { V2Icon } from './ui/V2Icon';
 
 /** Everything the achievement list can be measured against, computed once. */
 interface Metrics {
@@ -36,11 +37,11 @@ interface Achievement {
   measure: (metrics: Metrics) => number;
 }
 
-const CATEGORIES: Array<{ id: Category; label: string; hint: string }> = [
-  { id: 'progress', label: '题库进度', hint: '把 319 道题一点点走完' },
-  { id: 'mastery', label: 'Topic 精通', hint: '按主题逐块攻下' },
-  { id: 'habit', label: '学习习惯', hint: '规律比爆发更重要' },
-  { id: 'challenge', label: '挑战', hint: '给自己一点难度' },
+const CATEGORIES: Array<{ id: Category; label: string }> = [
+  { id: 'progress', label: '题库进度' },
+  { id: 'mastery', label: 'Topic 精通' },
+  { id: 'habit', label: '学习习惯' },
+  { id: 'challenge', label: '挑战' },
 ];
 
 const ACHIEVEMENTS: Achievement[] = [
@@ -83,6 +84,7 @@ interface AchievementsProps {
   learningStates: Record<number, QuestionLearningState>;
   topicProgress: TopicProgress[];
   progress: UserProgress[];
+  onBack?: () => void;
 }
 
 export function Achievements({ stats, learningStates, topicProgress, progress }: AchievementsProps) {
@@ -112,87 +114,56 @@ export function Achievements({ stats, learningStates, topicProgress, progress }:
     .sort((a, b) => b.current / b.achievement.target - a.current / a.achievement.target)[0];
 
   return (
-    <div className="space-y-7">
-      <header>
-        <p className="text-sm font-extrabold text-warning-ink">每一步都算数</p>
-        <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">成就收藏</h1>
-        <div className="mt-4 flex items-center gap-3">
-          <ProgressBar
-            value={unlockedCount}
-            max={ACHIEVEMENTS.length}
-            label={`已解锁 ${unlockedCount} / ${ACHIEVEMENTS.length} 个成就`}
-            tone="warning"
-            className="flex-1"
-          />
-          <span className="shrink-0 text-xs font-extrabold tabular-nums text-muted">
-            {unlockedCount}/{ACHIEVEMENTS.length}
-          </span>
-        </div>
+    <div className="mx-auto max-w-xl space-y-5">
+      <header className="space-y-5">
+        <h1 className="text-[26px] font-bold leading-9 text-ink">收藏每一个小进步。</h1>
+        <p className="text-sm leading-[22px] text-muted">刷题、专题、专注和挑战，都有自己的里程碑。</p>
+      </header>
+
+      <section aria-label="收藏进度" className="space-y-3 rounded-[20px] border-2 border-brand-line bg-brand-soft p-5">
+        <h2 className="text-xl font-bold leading-7 text-brand-strong">已解锁 {unlockedCount} / {ACHIEVEMENTS.length}</h2>
+        <ProgressBar value={unlockedCount} max={ACHIEVEMENTS.length} label="成就解锁进度" className="h-3" />
         {nextUp && (
-          <p className="mt-3 rounded-2xl bg-surface-soft px-4 py-3 text-sm font-bold text-muted">
-            <span className="text-ink">最接近的是「{nextUp.achievement.title}」</span>
-            ，还差 {nextUp.achievement.target - nextUp.current} {nextUp.achievement.unit}。
+          <p className="text-xs leading-[18px] text-brand-soft-ink">
+            离「{nextUp.achievement.title}」还差 {nextUp.achievement.target - nextUp.current} {nextUp.achievement.unit}。
           </p>
         )}
-      </header>
+      </section>
 
       {CATEGORIES.map((category) => {
         const items = entries.filter((entry) => entry.achievement.category === category.id);
-        const done = items.filter((entry) => entry.unlocked).length;
-
         return (
-          <section key={category.id} aria-labelledby={`category-${category.id}`}>
-            <div className="mb-3 flex items-baseline justify-between gap-3">
-              <h2 id={`category-${category.id}`} className="text-lg font-black tracking-[-0.02em] text-ink">
-                {category.label}
-              </h2>
-              <span className="shrink-0 text-xs font-extrabold tabular-nums text-muted">{done}/{items.length}</span>
-            </div>
-            <p className="mb-3 text-xs font-semibold text-muted">{category.hint}</p>
+          <section key={category.id} aria-labelledby={`category-${category.id}`} className="space-y-5">
+            <h2 id={`category-${category.id}`} className="text-base font-bold leading-6 text-ink">{category.label}</h2>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3">
               {items.map(({ achievement, current, unlocked }) => (
                 <article
                   key={achievement.id}
-                  className={`flex flex-col rounded-[1.25rem] border-2 p-4 text-center ${
-                    unlocked
-                      ? 'border-line bg-surface shadow-[0_4px_0_var(--ui-line-strong)]'
-                      : 'border-line bg-surface-soft'
+                  className={`flex flex-col gap-3 rounded-2xl border-2 p-4 ${
+                    unlocked ? 'border-brand-line bg-brand-soft' : 'border-line bg-surface'
                   }`}
                 >
-                  <div
-                    className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 ${
-                      unlocked ? unlockedTone[achievement.tone] : 'border-line-strong bg-surface text-faint'
-                    }`}
-                  >
-                    <Icon name={unlocked ? achievement.icon : 'lock'} size={26} />
+                  {unlocked
+                    ? <span className={`flex size-6 items-center justify-center rounded-md ${unlockedTone[achievement.tone]}`}>
+                        <Icon name={achievement.icon} size={16} />
+                      </span>
+                    : <span className="flex text-muted"><V2Icon name="trophy" /></span>}
+                  <h3 className="text-base font-bold leading-6 text-ink">{achievement.title}</h3>
+                  <div className="text-xs font-medium leading-[18px] text-muted">
+                    <p>{unlocked ? '已解锁' : '尚未解锁'}</p>
+                    <p className="mt-1">{achievement.description}</p>
                   </div>
-                  <h3 className="mt-3 text-sm font-black text-ink">{achievement.title}</h3>
-                  <p className="mt-1 flex-1 text-xs font-semibold leading-relaxed text-muted">
-                    {achievement.description}
-                  </p>
-
-                  {unlocked ? (
-                    <p className="mt-3 text-[11px] font-extrabold text-brand-strong">已解锁</p>
-                  ) : (
-                    <div className="mt-3">
-                      <div
-                        className="h-1.5 overflow-hidden rounded-full bg-line"
-                        role="progressbar"
-                        aria-valuenow={current}
-                        aria-valuemin={0}
-                        aria-valuemax={achievement.target}
-                        aria-label={`${achievement.title} 进度 ${current} / ${achievement.target}`}
-                      >
-                        <div
-                          className="h-full rounded-full bg-line-strong"
-                          style={{ width: `${Math.round((current / achievement.target) * 100)}%` }}
-                        />
-                      </div>
-                      <p className="mt-1.5 text-[11px] font-extrabold tabular-nums text-muted">
-                        还差 {achievement.target - current} {achievement.unit}
-                      </p>
-                    </div>
+                  {!unlocked && current > 0 && (
+                    <>
+                      <ProgressBar
+                        value={current}
+                        max={achievement.target}
+                        label={`${achievement.title}进度`}
+                        className="h-1.5"
+                      />
+                      <p className="text-xs leading-[18px] text-muted">还差 {achievement.target - current} {achievement.unit}</p>
+                    </>
                   )}
                 </article>
               ))}
@@ -200,6 +171,8 @@ export function Achievements({ stats, learningStates, topicProgress, progress }:
           </section>
         );
       })}
+
+      <p className="text-xs leading-[18px] text-muted">完成学习后，回来查看解锁的成就。</p>
     </div>
   );
 }

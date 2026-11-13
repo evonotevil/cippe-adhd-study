@@ -6,7 +6,6 @@ import { useSound } from '../hooks/useSound';
 import { parseQuestionText, scenarioLength, splitOption } from '../utils/questionText';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
-import { StreakFeedbackBadge } from './ui/StreakFeedback';
 
 interface QuizCardProps {
   question: Question;
@@ -27,7 +26,7 @@ interface QuizCardProps {
   scenarioRun?: { position: number; total: number; missing: number } | null;
 }
 
-type OptionState = 'idle' | 'selected' | 'correct' | 'wrong' | 'muted';
+type OptionState = 'idle' | 'selected' | 'correct' | 'wrong' | 'disabled';
 
 function parseExplanation(explanation: string) {
   const normalized = explanation
@@ -71,7 +70,7 @@ export function QuizCard({
   scenarioRun,
 }: QuizCardProps) {
   const reduceMotion = useReducedMotion();
-  const nextActionRef = useRef<HTMLDivElement>(null);
+  const feedbackRef = useRef<HTMLElement>(null);
   const { playCorrect, playWrong } = useSound(soundEnabled);
   // 「连对两次才移出错题本」是这个 App 的核心机制，但界面从未解释过。
   // 第一次答错时讲一遍，之后不再打扰。
@@ -87,13 +86,13 @@ export function QuizCard({
   const [scenarioOpen, setScenarioOpen] = useState(!scenarioRun || scenarioRun.position === 1);
   const roundedScenarioChars = Math.round(scenarioLength(parsed.scenario) / 10) * 10;
   // 四个选项始终都在。解析里会逐个点评（"C 混淆了…；D 遗漏了…"），
-  // 把没选中的错项藏起来会让那段分析无从对照。错项用 muted 弱化即可。
+  // 保留未选中的选项，便于对照完整解析。
   const visibleOptions = question.options;
 
   useEffect(() => {
     if (!showResult) return;
     const frame = window.requestAnimationFrame(() => {
-      nextActionRef.current?.scrollIntoView({
+      feedbackRef.current?.scrollIntoView({
         block: 'nearest',
         behavior: reduceMotion ? 'auto' : 'smooth',
       });
@@ -105,27 +104,25 @@ export function QuizCard({
     if (showResult) {
       if (answer === question.correctAnswer) return 'correct';
       if (answer === selectedAnswer) return 'wrong';
-      return 'muted';
+      return 'disabled';
     }
     return answer === selectedAnswer ? 'selected' : 'idle';
   };
 
   const optionStyles: Record<OptionState, string> = {
-    idle: 'border-line bg-surface text-ink shadow-[0_4px_0_var(--ui-line-strong)] hover:border-info',
-    selected: 'border-info-shadow bg-info-soft text-info-ink shadow-[0_4px_0_var(--ui-info-shadow)]',
-    correct: 'border-brand-shadow bg-brand-soft text-brand-soft-ink shadow-[0_4px_0_var(--ui-brand-shadow)]',
-    wrong: 'border-danger-shadow bg-danger-soft text-danger-ink shadow-[0_4px_0_var(--ui-danger-shadow)]',
-    // 不用 opacity 压暗：整体透明度会把文字和底色一起拉向页面底色，实测只剩 3:1。
-    // 弱化交给 muted 墨色和更浅的边框即可。
-    muted: 'border-line bg-surface-soft text-muted shadow-[0_3px_0_var(--ui-line)]',
+    idle: 'border-line bg-surface hover:enabled:border-info',
+    selected: 'border-info bg-info-soft',
+    correct: 'border-brand-strong bg-brand-soft',
+    wrong: 'border-danger bg-danger-soft',
+    disabled: 'border-line bg-surface-soft text-muted',
   };
 
   const badgeStyles: Record<OptionState, string> = {
-    idle: 'border-line-strong bg-surface-soft text-muted',
-    selected: 'border-info-shadow bg-info text-white',
-    correct: 'border-brand-shadow bg-brand text-brand-ink',
-    wrong: 'border-danger-shadow bg-danger text-white',
-    muted: 'border-line bg-surface text-faint',
+    idle: 'border-line',
+    selected: 'border-line',
+    correct: 'border-brand-strong',
+    wrong: 'border-danger',
+    disabled: 'border-line',
   };
 
   const handleSubmit = () => {
@@ -141,16 +138,14 @@ export function QuizCard({
   };
 
   return (
-    <article className="mx-auto w-full max-w-2xl" aria-labelledby={`question-${question.id}`}>
-      <header className="mb-6">
-        <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-info-soft px-3 py-1.5 text-xs font-extrabold text-info-ink">
-          <Icon name="book" size={15} />
-          {question.topic}
-        </span>
+    <article className="flex w-full flex-1 flex-col" aria-labelledby={`question-${question.id}`}>
+      <header className="mb-4">
+        <p className="mb-4 text-xs leading-[18px] font-medium text-info-accent">{question.topic.replaceAll('/', ' / ')}</p>
         {/* 提问放在最前：先知道要找什么，再读材料。 */}
         <h1
           id={`question-${question.id}`}
-          className="max-w-[62ch] text-balance text-lg font-bold leading-[1.65] tracking-[-0.008em] text-ink sm:text-xl"
+          lang="en"
+          className="app-question max-w-[62ch] break-words text-ink [text-wrap:wrap]"
         >
           {parsed.prompt}
         </h1>
@@ -216,7 +211,7 @@ export function QuizCard({
           ) : (
             <div className="mt-3 space-y-2">
               {parsed.scenario.map((paragraph, index) => (
-                <p key={index} className="max-w-[62ch] whitespace-pre-line break-words text-base font-semibold leading-[1.7] text-muted">
+                <p lang="en" key={index} className="app-exam-font max-w-[62ch] whitespace-pre-line break-words text-base font-semibold leading-[1.7] text-muted">
                   {paragraph}
                 </p>
               ))}
@@ -225,11 +220,11 @@ export function QuizCard({
         )}
       </header>
 
-      <div className="mb-6 space-y-3" role="group" aria-label="答案选项">
+      <div className="space-y-3 pb-6" role="group" aria-label="答案选项">
         {visibleOptions.map((option) => {
           const { letter: answer, text: optionText } = splitOption(option);
           const state = getOptionState(answer);
-          const resultIcon = state === 'correct' ? 'check' : state === 'wrong' ? 'x' : null;
+          const resultLabel = state === 'correct' ? '正确答案' : state === 'wrong' ? '错误选项' : null;
 
           return (
             <m.button
@@ -246,116 +241,98 @@ export function QuizCard({
                     : { x: 0, scale: 1 }
               }
               transition={{ duration: state === 'wrong' ? 0.22 : 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className={`flex min-h-[68px] w-full items-start gap-3 rounded-2xl border-2 px-4 py-3.5 text-left font-semibold transition-[transform,box-shadow,border-color,background-color,color] duration-150 active:translate-y-[3px] active:shadow-none ${optionStyles[state]}`}
+              className={`flex min-h-[76px] w-full items-center gap-3 rounded-2xl border-2 p-3 text-left transition-colors duration-150 ${state === 'disabled' ? '' : 'text-ink'} ${optionStyles[state]}`}
             >
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 text-sm font-black ${badgeStyles[state]}`}>
-                {resultIcon ? <Icon name={resultIcon} size={21} /> : answer}
+              <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg border-2 text-sm font-bold ${badgeStyles[state]}`}>
+                {answer}
               </span>
-              <span className="min-w-0 flex-1 self-center break-words leading-[1.7]">{optionText}</span>
+              <span lang="en" className="app-answer min-w-0 flex-1 break-words">
+                {resultLabel && <span className="sr-only">，{resultLabel}：</span>}
+                {optionText}
+              </span>
             </m.button>
           );
         })}
       </div>
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence initial={false}>
         {showResult && (
           <m.section
-            key={isCorrect ? 'correct-feedback' : 'wrong-feedback'}
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 18 }}
+            key="answer-feedback"
+            ref={feedbackRef}
+            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0.08 : 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="relative mb-6 rounded-[1.25rem] border-2 border-line bg-surface p-4 text-ink shadow-[0_4px_0_var(--ui-line-strong)] sm:p-5"
+            transition={{ duration: reduceMotion ? 0 : 0.18 }}
+            className="quiz-footer-edge mt-auto scroll-mb-32 border-t-2 border-line pt-4"
           >
-            <div className="relative z-10">
-              <div role="status" aria-live="polite" aria-atomic="true">
-                <div className="flex items-start gap-3">
-                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isCorrect ? 'bg-brand text-brand-ink' : 'bg-danger text-white'}`}>
-                    <Icon name={isCorrect ? 'check' : 'x'} size={25} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    {isCorrect ? (
-                      <StreakFeedbackBadge streak={Math.max(1, correctStreak)} />
-                    ) : (
-                      <>
-                        <h2 className="text-lg font-black text-danger-ink">答案需要调整</h2>
-                        <p className="mt-1 text-sm font-bold">正确答案是 {question.correctAnswer}</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <p className="text-xs font-extrabold text-muted">先记这一条</p>
-                  <p className="mt-1 max-w-[68ch] break-words text-sm font-semibold leading-[1.75] text-ink">
-                    {explanation.summary}
-                  </p>
-                </div>
-              </div>
-              {!isCorrect && showRuleHint && (
-                <p className="mt-3 flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2.5 text-sm font-semibold leading-relaxed text-info-ink">
-                  <Icon name="refresh" size={17} className="mt-0.5 shrink-0" />
-                  <span>这道题已进入错题本。之后<b className="font-black">连续答对两次</b>，它才会自动移出 —— 一次蒙对不算掌握。</span>
-                </p>
-              )}
-              {explanation.memoryCue && (
-                <p className="mt-3 max-w-[68ch] break-words rounded-xl bg-surface-soft px-3 py-2 text-sm font-medium leading-[1.75] text-ink">
-                  <span className="font-extrabold">知识点：</span>
-                  {explanation.memoryCue}
-                </p>
-              )}
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className={`space-y-3 rounded-2xl border-2 p-5 ${isCorrect ? 'border-brand-line bg-brand-soft text-brand-strong' : 'border-danger-line bg-danger-soft text-danger-accent'}`}
+            >
+              <h2 className="flex items-center gap-2 text-base font-bold">
+                <Icon name={isCorrect ? 'check' : 'x'} size={18} className="shrink-0" />
+                {isCorrect ? '回答正确' : '没关系，这题一起记住'}
+              </h2>
+              <p className="break-words text-sm leading-[22px]">
+                {!isCorrect && <>正确答案 {question.correctAnswer} · </>}{explanation.summary}
+              </p>
             </div>
-            <div ref={nextActionRef} className="relative z-10 mt-5 flex gap-3 scroll-mb-4">
-              {onPrevious && (
-                <Pressable
-                  variant="neutral"
-                  size="lg"
-                  onClick={onPrevious}
-                  aria-label="上一题"
-                  className="shrink-0 px-4"
-                >
-                  <Icon name="arrow-left" size={20} />
-                </Pressable>
-              )}
-              <Pressable
-                variant="primary"
-                size="lg"
-                block
-                onClick={handleAdvance}
-                trailing={<Icon name="arrow-right" size={20} />}
-              >
-                下一题
-              </Pressable>
-            </div>
-            {explanation.details && (
-              <details className="relative z-10 mt-4 border-t border-line pt-3 text-sm">
-                <summary className="min-h-11 cursor-pointer rounded-lg px-2 py-3 font-extrabold text-muted transition-colors hover:bg-surface-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-info">
-                  展开完整分析
-                </summary>
-                <p className="max-w-[68ch] break-words px-2 pb-1 pt-2 font-medium leading-[1.75] text-ink">
-                  {explanation.details}
-                </p>
-              </details>
-            )}
           </m.section>
         )}
       </AnimatePresence>
 
-      {mode === 'study' && !showResult && (
-        <div className="mt-6 rounded-[1.25rem] border-2 border-line bg-surface p-3 shadow-[0_4px_0_var(--ui-line-strong)]">
-          <div className="flex items-center gap-3">
-            <Pressable variant="ghost" size="md" onClick={onSkip} className="shrink-0 px-3">
-              暂时跳过
-            </Pressable>
-            <Pressable
-              variant="primary"
-              size="lg"
-              block
-              onClick={handleSubmit}
-              disabled={!selectedAnswer}
-            >
-              检查答案
-            </Pressable>
-          </div>
+      {mode === 'study' && (
+        <div
+          className={`quiz-footer-edge quiz-safe-bottom sticky bottom-0 z-10 bg-surface ${showResult ? 'pt-3' : 'mt-auto border-t-2 border-line pt-4'}`}
+        >
+          {showResult ? (
+            <>
+              {(explanation.details || explanation.memoryCue || showRuleHint) && (
+                <details className="mb-2 text-sm">
+                  <summary className="w-fit cursor-pointer rounded-md py-2 font-semibold text-muted">
+                    展开完整分析
+                  </summary>
+                  <div className="max-h-[35dvh] space-y-2 overflow-y-auto overscroll-contain break-words pb-2 leading-relaxed text-ink">
+                    {explanation.details && <p>{explanation.details}</p>}
+                    {explanation.memoryCue && <p><b>知识点：</b>{explanation.memoryCue}</p>}
+                    {showRuleHint && (
+                      <p className="rounded-lg bg-info-soft px-3 py-2 text-info-ink">
+                        这道题已进入错题本。之后连续答对两次，它就会自动移出。
+                      </p>
+                    )}
+                  </div>
+                </details>
+              )}
+              <div className="flex gap-3">
+                {onPrevious && (
+                  <Pressable variant="neutral" size="lg" onClick={onPrevious} aria-label="上一题" className="shrink-0 px-4">
+                    <Icon name="arrow-left" size={19} />
+                  </Pressable>
+                )}
+                <Pressable
+                  variant="featured"
+                  size="lg"
+                  block
+                  onClick={handleAdvance}
+                  trailing={<Icon name="arrow-right" size={17} />}
+                >
+                  下一题
+                </Pressable>
+              </div>
+            </>
+          ) : (
+            <>
+              <Pressable variant="featured" size="lg" block onClick={handleSubmit} disabled={!selectedAnswer}>
+                检查答案
+              </Pressable>
+              <button type="button" onClick={onSkip} className="mt-3 flex min-h-11 items-center rounded-md text-xs font-medium text-muted">
+                暂时跳过这一题 →
+              </button>
+            </>
+          )}
         </div>
       )}
     </article>

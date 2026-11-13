@@ -1,18 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Home } from './components/Home';
+import { Home, PracticeHub, Profile } from './components/Home';
+import { StudyPlan } from './components/StudyPlan';
+import { STUDY_DAYS, type StudyDay } from './data/studyPlan';
 import { TopicPicker } from './components/TopicPicker';
+import { MistakeReview } from './components/MistakeReview';
 import { RandomSetup } from './components/RandomSetup';
 import { PracticeView } from './components/PracticeView';
 import { MilestoneView } from './components/MilestoneView';
 import { ResultView } from './components/ResultView';
 import { Timer } from './components/Timer';
 import { Achievements } from './components/Achievements';
-import { Settings } from './components/Settings';
+import { Settings, type SettingsSection } from './components/Settings';
 import { PageTransition } from './components/ui/PageTransition';
-import { ProgressBar } from './components/ui/ProgressBar';
-import { Icon, type IconName } from './components/ui/Icons';
+import { V2Icon, type V2IconName } from './components/ui/V2Icon';
+import logo from './assets/v2/shell-brand-logo.svg';
+import { Icon } from './components/ui/Icons';
 import { Pressable } from './components/ui/Pressable';
+import { ConfirmationDialog } from './components/ui/ConfirmationDialog';
+import { WebStateCard } from './components/ui/WebStateCard';
+import { ACTIVE_SESSION_STORAGE_KEY, savePracticeDraft } from './utils/persistentStorage';
+import { Chip } from './components/ui/Chip';
 import { useProgress } from './hooks/useProgress';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useTimer } from './hooks/useTimer';
@@ -21,7 +29,6 @@ import {
   addReinforcementRound,
   createPracticeSession,
   getReinforcementCount,
-  getTodayStats,
 } from './domain/practice';
 import type {
   PracticeSession,
@@ -29,11 +36,7 @@ import type {
   RandomPracticeSettings,
   StudySettings,
 } from './types';
-import {
-  getCatalogTopicProgress,
-  getUnseenQuestionCount,
-  QUESTION_COUNT,
-} from './data/questionCatalog';
+import { getCatalogTopicProgress } from './data/questionCatalog';
 
 let questionBankPromise: Promise<Question[]> | null = null;
 
@@ -68,6 +71,10 @@ const DEFAULT_RANDOM_SETTINGS: RandomPracticeSettings = {
 
 type View =
   | 'home'
+  | 'plan'
+  | 'hub'
+  | 'profile'
+  | 'mistakes'
   | 'topics'
   | 'random'
   | 'practice'
@@ -83,49 +90,67 @@ interface AnswerRecord {
   timeSpent: number;
 }
 
-interface NavigationItem {
-  id: 'home' | 'timer' | 'achievements' | 'settings';
-  label: string;
-  icon: IconName;
-  active: boolean;
-}
+type TopView = 'home' | 'plan' | 'hub' | 'profile';
+const TOP_NAV: { id: TopView; label: string; icon: V2IconName }[] = [
+  { id: 'home', label: '今日', icon: 'home' },
+  { id: 'plan', label: '备考', icon: 'flag' },
+  { id: 'hub', label: '练习', icon: 'topics' },
+  { id: 'profile', label: '我的', icon: 'settings' },
+];
 
 /** 阶段结束超过这个时间就不再弹提示，只默默记账。 */
 const ALERT_FRESHNESS_MS = 2 * 60 * 1000;
 
 const VIEW_TITLES: Record<View, string> = {
-  home: '首页',
+  home: '今日',
+  plan: '备考',
+  hub: '练习',
+  profile: '我的',
+  mistakes: '错题复习',
   topics: '专题练习',
   random: '随机组卷',
   practice: '答题练习',
   milestone: '阶段完成',
   result: '练习结果',
-  timer: '番茄钟',
-  achievements: '成就',
-  settings: '设置',
+  timer: '专注一下',
+  achievements: '成就收藏',
+  settings: '学习设置',
 };
 
 function App() {
   const mainRef = useRef<HTMLElement>(null);
+  const questionErrorRef = useRef<HTMLDivElement>(null);
   const hasMounted = useRef(false);
   const [currentView, setCurrentView] = useState<View>('home');
   const [questions, setQuestions] = useState<Question[] | null>(null);
-  const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
+  const [questionLoading, setQuestionLoading] = useState(false);
+  const [questionLoadError, setQuestionLoadError] = useState<'offline' | 'load' | null>(null);
   const [transitionDirection, setTransitionDirection] = useState<-1 | 0 | 1>(1);
   const navigate = useCallback((view: View, direction: -1 | 0 | 1 = 1) => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
     setTransitionDirection(direction);
     setCurrentView(view);
   }, []);
   const [settings, setSettings] = useLocalStorage<StudySettings>('cippe-settings', DEFAULT_SETTINGS);
   const [activeSession, setActiveSession] = useLocalStorage<PracticeSession | null>(
-    'cippe-active-session',
+    ACTIVE_SESSION_STORAGE_KEY,
     null,
   );
+  const [practiceConfirmation, setPracticeConfirmation] = useState<{ kind: 'replace'; session: PracticeSession } | { kind: 'discard' } | null>(null);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<'saved' | 'error' | null>(null);
   const [randomSettings, setRandomSettings] = useLocalStorage<RandomPracticeSettings>(
     'cippe-random-settings',
     DEFAULT_RANDOM_SETTINGS,
   );
-  const [lastResult, setLastResult] = useState<PracticeSession | null>(null);
+  const planMapState = useRef({ scrollY: 0, view: 'map' as 'map' | 'list' });
+  const [selectedStudyDay, setSelectedStudyDay] = useState<number>();
+  const [completedStudyDays, setCompletedStudyDays] = useLocalStorage<number[]>('cippe-study-plan-v1', []);
+  const selectedLesson = STUDY_DAYS.find(({ day }) => day === selectedStudyDay);
+  const [lastResult, setLastResult] = useLocalStorage<PracticeSession | null>('cippe-last-result', null);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>();
+  const [timerReturnView, setTimerReturnView] = useState<View>('home');
+  const [mistakesReturnView, setMistakesReturnView] = useState<View>('hub');
+  const [settingsReturnView, setSettingsReturnView] = useState<View>('profile');
   const {
     progress,
     stats,
@@ -224,38 +249,102 @@ function App() {
     return () => window.cancelAnimationFrame(frame);
   }, [currentView]);
 
+  useEffect(() => {
+    if (!questionLoadError) return;
+    const frame = requestAnimationFrame(() => questionErrorRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [questionLoadError]);
+
   const topicProgress = useMemo(
     () => getCatalogTopicProgress(learningStates),
     [learningStates],
   );
-  const todayStats = useMemo(() => getTodayStats(progress), [progress]);
-  const unseenCount = useMemo(() => getUnseenQuestionCount(learningStates), [learningStates]);
+  const nextStudyDay = STUDY_DAYS.find(({ day }) => !completedStudyDays.includes(day));
+  const recentWrongAnswers = useMemo(() => Object.fromEntries(
+    (lastResult?.attempts ?? []).filter(({ isCorrect }) => !isCorrect).map(({ questionId, answer }) => [questionId, answer]),
+  ), [lastResult]);
+  const recentWrongIds = useMemo(() => Object.keys(recentWrongAnswers).map(Number), [recentWrongAnswers]);
 
   const ensureQuestionBank = useCallback(async () => {
     if (questions) return questions;
 
     setQuestionLoadError(null);
+    setQuestionLoading(true);
     try {
       const loadedQuestions = await loadQuestionBank();
       setQuestions(loadedQuestions);
       return loadedQuestions;
     } catch {
-      setQuestionLoadError('题库加载失败，请检查网络后重新载入页面。');
+      setQuestionLoadError(navigator.onLine ? 'load' : 'offline');
       return null;
+    } finally {
+      setQuestionLoading(false);
     }
   }, [questions]);
 
-  const launchSession = useCallback((session: PracticeSession) => {
-    if (session.items.length === 0) return;
-    if (
-      activeSession &&
-      !window.confirm('已有一组未完成练习。结束旧练习并开始新练习吗？')
-    ) {
-      return;
-    }
+  const beginSession = useCallback((session: PracticeSession) => {
+    setDraftSaveStatus(null);
     setActiveSession(session);
     navigate('practice', 1);
-  }, [activeSession, navigate, setActiveSession]);
+  }, [navigate, setActiveSession]);
+
+  const launchSession = useCallback((session: PracticeSession) => {
+    if (session.items.length === 0) return;
+    if (activeSession) {
+      setPracticeConfirmation({ kind: 'replace', session });
+    } else {
+      beginSession(session);
+    }
+  }, [activeSession, beginSession]);
+
+  const openPlan = useCallback((day?: number) => {
+    setSelectedStudyDay(day);
+    navigate('plan', -1);
+  }, [navigate]);
+
+  const openSettings = (section?: SettingsSection) => {
+    setSettingsReturnView(currentView);
+    setSettingsSection(section);
+    navigate('settings');
+  };
+
+  const openTimer = () => {
+    setTimerReturnView(currentView);
+    navigate('timer');
+  };
+
+  const openMistakes = () => {
+    setMistakesReturnView(currentView);
+    navigate('mistakes');
+    void ensureQuestionBank();
+  };
+
+  const markStudyDayComplete = useCallback((day: number) => {
+    setCompletedStudyDays((current) => current.includes(day) ? current : [...current, day]);
+  }, [setCompletedStudyDays]);
+
+  const startStudyPractice = useCallback(async (day: StudyDay) => {
+    const practice = day.practice;
+    if (!practice) return;
+    const questionBank = await ensureQuestionBank();
+    if (!questionBank) return;
+
+    if (activeSession?.studyDay === day.day) {
+      navigate('practice', 1);
+      return;
+    }
+
+    const ids = practice.questionIds && new Set(practice.questionIds);
+    const scope = questionBank.filter((question) =>
+      (!ids || ids.has(question.id)) && (!practice.topics || practice.topics.includes(question.topic)),
+    );
+    const session = createPracticeSession(scope, learningStates, {
+      kind: 'random',
+      count: practice.count,
+      mode: practice.mode,
+    });
+    launchSession({ ...session, studyDay: day.day });
+  }, [activeSession, ensureQuestionBank, launchSession, learningStates, navigate]);
 
   const startRecommended = useCallback(async () => {
     const questionBank = await ensureQuestionBank();
@@ -266,12 +355,6 @@ function App() {
       topic: null,
       count: 5,
     }));
-  }, [ensureQuestionBank, launchSession, learningStates]);
-
-  const startMistakes = useCallback(async () => {
-    const questionBank = await ensureQuestionBank();
-    if (!questionBank) return;
-    launchSession(createPracticeSession(questionBank, learningStates, { kind: 'mistakes' }));
   }, [ensureQuestionBank, launchSession, learningStates]);
 
   const startTopic = useCallback(async (topic: string) => {
@@ -302,20 +385,25 @@ function App() {
   );
 
   const finishSession = useCallback((session: PracticeSession) => {
+    if (session.studyDay && session.items.length > 0 && session.attempts.length === session.items.length) {
+      markStudyDayComplete(session.studyDay);
+    }
     setLastResult(session);
     setActiveSession(null);
     navigate('result', 1);
-  }, [navigate, setActiveSession]);
+  }, [markStudyDayComplete, navigate, setActiveSession, setLastResult]);
 
   const submitExam = useCallback((session: PracticeSession, answers: AnswerRecord[]) => {
     recordAnswers(answers);
     finishSession(session);
   }, [finishSession, recordAnswers]);
 
+  const activeStudyDay = activeSession?.studyDay;
   const discardEmptySession = useCallback(() => {
     setActiveSession(null);
-    navigate('home', -1);
-  }, [navigate, setActiveSession]);
+    if (activeStudyDay) openPlan(activeStudyDay);
+    else navigate('hub', -1);
+  }, [activeStudyDay, navigate, openPlan, setActiveSession]);
 
   const reachBoundary = useCallback((session: PracticeSession) => {
     setActiveSession(session);
@@ -344,6 +432,11 @@ function App() {
 
   const repeatLastSession = useCallback(async () => {
     if (!lastResult) return;
+    const lesson = STUDY_DAYS.find(({ day }) => day === lastResult.studyDay);
+    if (lesson) {
+      await startStudyPractice(lesson);
+      return;
+    }
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
     launchSession(
@@ -352,33 +445,64 @@ function App() {
         mode: lastResult.mode,
         topic: lastResult.topic,
         count: lastResult.requestedCount,
+        questionIds: lastResult.kind === 'mistakes' ? [...new Set(lastResult.items.map(({ questionId }) => questionId))] : undefined,
       }),
     );
-  }, [ensureQuestionBank, lastResult, launchSession, learningStates]);
+  }, [ensureQuestionBank, lastResult, launchSession, learningStates, startStudyPractice]);
+
+  const handlePause = (session: PracticeSession) => {
+    const saved = savePracticeDraft(session);
+    setActiveSession(session);
+    setDraftSaveStatus(saved ? 'saved' : 'error');
+    if (session.studyDay) openPlan(session.studyDay);
+    else navigate('hub', -1);
+  };
+
+  const confirmPracticeChange = () => {
+    if (!practiceConfirmation) return;
+    if (practiceConfirmation.kind === 'replace') beginSession(practiceConfirmation.session);
+    else {
+      const saved = savePracticeDraft(null);
+      setActiveSession(null);
+      setDraftSaveStatus(saved ? null : 'error');
+    }
+    setPracticeConfirmation(null);
+  };
 
   const resumeSession = useCallback(async () => {
     const questionBank = await ensureQuestionBank();
     if (!questionBank) return;
+    setDraftSaveStatus(null);
     navigate('practice', 1);
   }, [ensureQuestionBank, navigate]);
 
-  const isFirstRun = stats.totalAnswered === 0;
-  const showAppHeader = currentView !== 'practice';
-  const showBottomNav = !['practice', 'milestone', 'result'].includes(currentView);
-  const homeTabActive = ['home', 'topics', 'random'].includes(currentView);
-  const completedCount = QUESTION_COUNT - unseenCount;
-  const navItems: NavigationItem[] = [
-    { id: 'home', label: '首页', icon: 'home', active: homeTabActive },
-    { id: 'timer', label: '番茄钟', icon: 'timer', active: currentView === 'timer' },
-    { id: 'achievements', label: '成就', icon: 'trophy', active: currentView === 'achievements' },
-    { id: 'settings', label: '设置', icon: 'settings', active: currentView === 'settings' },
-  ];
+  const lessonOpen = currentView === 'plan' && selectedLesson !== undefined;
+  const isTopView = TOP_NAV.some(({ id }) => id === currentView);
+  const activeTab: View = ['topics', 'random', 'mistakes'].includes(currentView)
+    ? 'hub'
+    : ['settings', 'achievements'].includes(currentView) ? 'profile' : currentView;
+  const showBottomNav = TOP_NAV.some(({ id }) => id === activeTab) && !lessonOpen;
+  const customBar = lessonOpen || currentView === 'practice' || currentView === 'result';
+  const showAppHeader = !customBar;
+  const openTab = (view: TopView) => {
+    setQuestionLoadError(null);
+    if (view === 'plan') openPlan();
+    else navigate(view, 0);
+  };
+  const goBackFromUtility = () => {
+    if (currentView === 'timer') navigate(timerReturnView, -1);
+    else if (currentView === 'settings') navigate(settingsReturnView, -1);
+    else if (currentView === 'achievements') navigate('profile', -1);
+    else if (currentView === 'mistakes') navigate(mistakesReturnView, -1);
+    else if (currentView === 'milestone' && activeStudyDay) openPlan(activeStudyDay);
+    else navigate('hub', -1);
+  };
 
   return (
     <div
       data-theme={settings.theme}
       data-font-size={settings.fontSize}
-      className="min-h-screen bg-app text-ink transition-colors duration-200"
+      className={`app-page bg-app text-ink transition-colors duration-200 ${timerAlert ? 'app-has-timer-alert' : ''}`}
     >
       {timerAlert && (
         <div ref={alertRef} className="app-safe-top sticky top-0 z-50 bg-app px-3 pb-3 pt-3">
@@ -429,68 +553,41 @@ function App() {
       )}
 
       {showAppHeader && (
-        <header className="app-safe-top app-sticky-top sticky z-40 border-b-2 border-line bg-surface">
-          <div className="mx-auto max-w-4xl px-4 pt-3">
-            <div className="flex items-center justify-between gap-3">
+        <header className="app-safe-top app-sticky-top sticky z-40 bg-surface">
+          <div className="mx-auto flex h-16 max-w-[680px] items-center gap-3 px-5 pt-2 pb-3">
+            {isTopView ? (
               <button
                 type="button"
-                onClick={() => navigate('home', -1)}
-                aria-label="返回首页"
-                className="flex min-h-11 shrink-0 items-center gap-2 rounded-xl pr-2 font-black tracking-[-0.02em] text-ink"
+                onClick={() => openTab('home')}
+                aria-label="返回今日"
+                className="flex min-h-11 min-w-11 items-center gap-3 rounded-xl text-left"
               >
-                <img
-                  src={`${import.meta.env.BASE_URL}favicon.svg`}
-                  alt=""
-                  width={36}
-                  height={36}
-                  className="size-9 rounded-xl shadow-[0_3px_0_var(--ui-brand-strong)]"
-                />
-                <span className="max-[359px]:hidden">CIPPE</span>
+                <img src={logo} alt="" width={36} height={36} className="size-9 rounded-xl shadow-[0_3px_0_#267716]" />
+                <span className="text-base font-bold">{currentView === 'home' ? 'CIPPE' : VIEW_TITLES[currentView]}</span>
               </button>
-
-              {isFirstRun ? (
-                <span className="whitespace-nowrap rounded-lg bg-brand-soft px-2.5 py-1.5 text-xs font-extrabold text-brand-soft-ink">
-                  从这里开始
-                </span>
-              ) : (
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span
-                  role="img"
-                  className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-warning-soft px-2 py-1.5 text-xs font-extrabold text-warning-ink"
-                  aria-label={
-                    stats.streakDays > 0
-                      ? `已连续学习 ${stats.streakDays} 天`
-                      : '还没有开始连续学习'
-                  }
-                >
-                  <Icon name="sparkle" size={15} aria-hidden="true" />
-                  <span className="tabular-nums" aria-hidden="true">{stats.streakDays} 天</span>
-                </span>
-                <span
-                  role="img"
-                  className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-brand-soft px-2 py-1.5 text-xs font-extrabold text-brand-soft-ink"
-                  aria-label={`今天已完成 ${todayStats.answered} 题`}
-                >
-                  <Icon name="check" size={15} aria-hidden="true" />
-                  <span className="tabular-nums" aria-hidden="true">今日 {todayStats.answered}</span>
-                </span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button type="button" aria-label="返回" onClick={goBackFromUtility} className="-ml-2 flex size-11 items-center justify-center rounded-xl text-muted hover:bg-surface-soft">
+                  <V2Icon name="back" />
+                </button>
+                <span className="text-base font-bold">{VIEW_TITLES[currentView]}</span>
               </div>
-              )}
-            </div>
-
-            <div className={`flex items-center gap-2 pb-2.5 ${isFirstRun ? 'hidden' : 'mt-2'}`}>
-              <ProgressBar
-                value={completedCount}
-                max={QUESTION_COUNT}
-                label={`题库进度 ${completedCount} / ${QUESTION_COUNT} 题`}
-                tone="brand"
-                className="h-1.5 flex-1"
-              />
-              <span className="shrink-0 text-[11px] font-extrabold tabular-nums text-muted" aria-hidden="true">
-                {completedCount}/{QUESTION_COUNT}
-              </span>
-            </div>
+            )}
+            {currentView !== 'timer' && (
+              <button type="button" aria-label="番茄钟" onClick={openTimer} className="ml-auto flex size-11 items-center justify-center rounded-xl text-muted hover:bg-surface-soft">
+                <V2Icon name="timer" />
+              </button>
+            )}
           </div>
+          {showBottomNav && (
+            <nav aria-label="主导航" className="mx-auto hidden max-w-[680px] grid-cols-4 gap-3 px-5 pb-2 md:grid">
+              {TOP_NAV.map((item) => (
+                <Chip key={item.id} aria-current={item.id === activeTab ? 'page' : undefined} onClick={() => openTab(item.id)}>
+                  {item.label}
+                </Chip>
+              ))}
+            </nav>
+          )}
         </header>
       )}
 
@@ -498,13 +595,28 @@ function App() {
         ref={mainRef}
         tabIndex={-1}
         aria-label={VIEW_TITLES[currentView]}
-        className={`mx-auto max-w-4xl px-4 focus:outline-none ${showAppHeader ? 'py-5' : 'py-3'} ${showBottomNav ? 'pb-28' : 'pb-8'}`}
+        className={`mx-auto max-w-[680px] px-5 focus:outline-none ${showAppHeader ? 'pt-5' : ''} ${showBottomNav ? 'app-content-with-nav' : customBar ? '' : 'pb-8'}`}
       >
+        {draftSaveStatus && currentView !== 'practice' && (
+          <div className={`mb-5 ${lessonOpen ? 'mt-4' : ''}`}>
+            <WebStateCard
+              tone={draftSaveStatus === 'saved' ? 'success' : 'error'}
+              role={draftSaveStatus === 'saved' ? 'status' : 'alert'}
+              title={draftSaveStatus === 'saved' ? '学习进度已保存到本机' : '学习进度未能写入本机'}
+              body={draftSaveStatus === 'saved' ? '你可以稍后回来继续学习。记录只保存在当前浏览器，建议定期导出备份。' : '请先保留此页面，检查浏览器的存储设置。关闭页面可能丢失未保存的进度。'}
+            >
+              <button type="button" onClick={() => setDraftSaveStatus(null)} className="min-h-11 text-sm font-bold underline">关闭提示</button>
+            </WebStateCard>
+          </div>
+        )}
         <div hidden={currentView !== 'timer'}>
           <Timer
             duration={settings.tomatoDuration}
             breakDuration={settings.breakDuration}
             timer={timer}
+            onOpenSettings={() => openSettings('focus')}
+            onOpenLesson={nextStudyDay ? () => openPlan(nextStudyDay.day) : undefined}
+            lessonLabel={nextStudyDay ? `第 ${nextStudyDay.day} 天 · ${nextStudyDay.title}` : undefined}
           />
         </div>
 
@@ -513,18 +625,65 @@ function App() {
             <PageTransition key={currentView} direction={transitionDirection}>
               {currentView === 'home' && (
                 <Home
-                  unseenCount={unseenCount}
-                  mistakeCount={mistakeIds.length}
-                  todayAnswered={todayStats.answered}
-                  todayCorrect={todayStats.correct}
-                  topicCount={topicProgress.length}
-                  isFirstRun={isFirstRun}
+                  completedDays={completedStudyDays}
+                  nextDay={nextStudyDay}
                   activeSession={activeSession}
-                  onStartRecommended={startRecommended}
-                  onStartMistakes={startMistakes}
-                  onOpenTopics={() => navigate('topics', 1)}
-                  onOpenRandom={() => navigate('random', 1)}
+                  focusMinutes={settings.tomatoDuration}
+                  onOpenPlan={openPlan}
+                  onOpenPractice={() => openTab('hub')}
+                  onOpenMistakes={openMistakes}
+                  onOpenTimer={openTimer}
                   onResume={resumeSession}
+                  onDiscard={() => setPracticeConfirmation({ kind: 'discard' })}
+                />
+              )}
+
+              {currentView === 'hub' && (
+                <PracticeHub
+                  activeSession={activeSession}
+                  topicCount={topicProgress.length}
+                  onResume={resumeSession}
+                  onDiscard={() => setPracticeConfirmation({ kind: 'discard' })}
+                  onRecommended={startRecommended}
+                  onTopics={() => navigate('topics')}
+                  onRandom={() => navigate('random')}
+                  onMistakes={openMistakes}
+                />
+              )}
+
+              {currentView === 'profile' && (
+                <Profile lastResult={lastResult} onAchievements={() => navigate('achievements')} onTimer={openTimer}
+                  onSettings={() => openSettings()} onData={() => openSettings('data')} />
+              )}
+
+              {currentView === 'mistakes' && (
+                <MistakeReview questions={questions} pendingMistakeIds={mistakeIds}
+                  recentMistakeIds={recentWrongIds} recentAnswers={recentWrongAnswers}
+                  onStart={reviewSpecificMistakes} />
+              )}
+
+              {currentView === 'plan' && (
+                <StudyPlan
+                  completedDays={completedStudyDays}
+                  selectedDay={selectedLesson}
+                  activeDay={activeStudyDay}
+                  onSelect={(day) => {
+                    setSelectedStudyDay(day);
+                    window.scrollTo(0, 0);
+                  }}
+                  onBack={() => {
+                    if (selectedLesson) setSelectedStudyDay(undefined);
+                    else navigate('home', -1);
+                  }}
+                  onStart={startStudyPractice}
+                  onOpenTimer={openTimer}
+                  mapState={planMapState}
+                  focusMinutes={settings.tomatoDuration}
+                  onComplete={(day) => {
+                    markStudyDayComplete(day);
+                    openPlan();
+                    window.scrollTo(0, 0);
+                  }}
                 />
               )}
 
@@ -532,7 +691,7 @@ function App() {
                 <TopicPicker
                   topics={topicProgress}
                   onSelect={startTopic}
-                  onBack={() => navigate('home', -1)}
+                  onBack={() => navigate('hub', -1)}
                 />
               )}
 
@@ -541,7 +700,7 @@ function App() {
                   initialSettings={randomSettings}
                   topics={topicProgress}
                   onStart={startRandom}
-                  onBack={() => navigate('home', -1)}
+                  onBack={() => navigate('hub', -1)}
                 />
               )}
 
@@ -554,7 +713,7 @@ function App() {
                   updateSession={updateActiveSession}
                   onRecordAnswer={recordAnswer}
                   onSubmitExam={submitExam}
-                  onPause={() => navigate('home', -1)}
+                  onPause={handlePause}
                   onFinish={finishSession}
                   onDiscardEmpty={discardEmptySession}
                   onBoundary={reachBoundary}
@@ -576,9 +735,12 @@ function App() {
                 <ResultView
                   session={lastResult}
                   remainingMistakeCount={mistakeIds.length}
-                  onReviewMistakes={reviewSpecificMistakes}
+                  onReviewMistakes={openMistakes}
                   onAgain={repeatLastSession}
                   onHome={() => navigate('home', -1)}
+                  onOpenTimer={openTimer}
+                  onPlan={lastResult.studyDay ? () => openPlan() : undefined}
+                  studyDayCompleted={completedStudyDays.includes(lastResult.studyDay ?? 0)}
                 />
               )}
 
@@ -594,6 +756,7 @@ function App() {
               {currentView === 'settings' && (
                 <Settings
                   settings={settings}
+                  initialSection={settingsSection}
                   onUpdate={setSettings}
                   progress={progress}
                   stats={stats}
@@ -603,52 +766,73 @@ function App() {
             </PageTransition>
           )}
         </AnimatePresence>
+        {questionLoading && (
+          <div className="my-5">
+            <WebStateCard role="status" title="正在准备这组练习" body="首次载入需要联网，请稍候。" />
+          </div>
+        )}
         {questionLoadError && (
-          <div
-            role="alert"
-            className="mx-auto mt-4 flex max-w-2xl flex-col gap-3 rounded-xl bg-danger-soft px-4 py-3 text-sm font-bold text-danger-ink sm:flex-row sm:items-center sm:justify-between"
-          >
-            <span>{questionLoadError}</span>
-            {/* 只能整页重载：一旦模块加载失败，浏览器会把这个失败记在 module map 里，
-                原地重试连请求都发不出去。学习进度都在 localStorage，重载不会丢东西。 */}
-            <Pressable
-              variant="danger-soft"
-              size="sm"
-              className="shrink-0"
-              leading={<Icon name="refresh" size={17} />}
-              onClick={() => { window.location.reload(); }}
+          <div ref={questionErrorRef} tabIndex={-1} className={`my-5 focus:outline-none ${lessonOpen ? 'mb-32' : ''}`}>
+            <WebStateCard
+              role="alert"
+              tone={questionLoadError === 'offline' ? 'warning' : 'error'}
+              title={questionLoadError === 'offline' ? '暂时连接不上' : '内容暂时未能载入'}
+              body={questionLoadError === 'offline' ? '当前内容暂时无法载入。请检查网络后重试，或返回今日。' : '请稍后重试，或返回上一页。重试不会清除已有的学习记录。'}
             >
-              重新载入
-            </Pressable>
+              <Pressable
+                variant={questionLoadError === 'offline' ? 'featured' : 'neutral'}
+                size="lg" block
+                onClick={() => {
+                  // A failed lazy import is cached until the document is reloaded.
+                  // Stay on the available page while the browser reports it is offline.
+                  if (navigator.onLine) window.location.reload();
+                  else setQuestionLoadError('offline');
+                }}
+              >
+                {questionLoadError === 'offline' ? '重试连接' : '重新载入'}
+              </Pressable>
+              <Pressable variant="neutral" size="lg" block onClick={() => {
+                if (questionLoadError === 'offline') openTab('home');
+                else {
+                  setQuestionLoadError(null);
+                  if (currentView === 'mistakes') navigate(mistakesReturnView, -1);
+                }
+              }}>{questionLoadError === 'offline' ? '返回今日' : '返回上一页'}</Pressable>
+            </WebStateCard>
           </div>
         )}
       </main>
 
       {showBottomNav && (
-        <nav
-          aria-label="主导航"
-          className="app-safe-bottom fixed bottom-0 left-0 right-0 z-40 border-t-2 border-line bg-surface shadow-[0_-4px_18px_var(--ui-shadow-color)]"
-        >
-          <div className="mx-auto flex max-w-4xl justify-around px-2 pt-2">
-            {navItems.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                onClick={() => navigate(item.id, item.id === 'home' ? -1 : 0)}
-                aria-current={item.active ? 'page' : undefined}
-                className={`relative flex min-h-14 min-w-[68px] flex-col items-center justify-center gap-1 rounded-2xl px-3 py-1.5 font-bold transition-colors duration-150 ${
-                  item.active ? 'bg-brand-soft text-brand-soft-ink' : 'text-muted hover:bg-surface-soft hover:text-ink'
-                }`}
-              >
-                <Icon name={item.icon} size={23} />
-                <span className="text-[11px]">{item.label}</span>
-                {item.active && (
-                  <span className="absolute -bottom-0.5 h-1 w-5 rounded-full bg-brand-strong" aria-hidden="true" />
-                )}
-              </button>
-            ))}
+        <nav aria-label="主导航" className="app-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t-2 border-line bg-surface pt-3 md:hidden">
+          <div className="mx-auto grid max-w-[640px] grid-cols-4">
+            {TOP_NAV.map((item) => {
+              const active = item.id === activeTab;
+              return (
+                <button type="button" key={item.id} onClick={() => openTab(item.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex min-h-[54px] flex-col items-center gap-1 rounded-xl text-xs font-medium ${active ? 'text-brand-strong' : 'text-muted'}`}>
+                  <span className={`flex h-8 w-14 items-center justify-center rounded-xl ${active ? 'bg-brand-soft' : ''}`}>
+                    <V2Icon name={item.icon} active={active} />
+                  </span>
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         </nav>
+      )}
+      {practiceConfirmation && (
+        <ConfirmationDialog
+          title={practiceConfirmation.kind === 'replace' ? '要开始一组新练习吗？' : '要放弃本次进度吗？'}
+          description={practiceConfirmation.kind === 'replace'
+            ? '当前有一组未完成的练习。开始新练习会丢失这组的未完成进度，已记录的学习数据不受影响。'
+            : '这组练习将无法继续。已经记录的学习数据不会清除。'}
+          confirmLabel={practiceConfirmation.kind === 'replace' ? '开始新练习' : '放弃进度'}
+          cancelLabel={practiceConfirmation.kind === 'replace' ? '保留原练习' : '保留进度'}
+          onConfirm={confirmPracticeChange}
+          onCancel={() => setPracticeConfirmation(null)}
+        />
       )}
     </div>
   );

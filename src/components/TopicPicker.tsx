@@ -1,182 +1,89 @@
+import { useState } from 'react';
 import type { TopicProgress } from '../types';
-import { Icon } from './ui/Icons';
-import { Pressable } from './ui/Pressable';
 import { ProgressBar } from './ui/ProgressBar';
 import { Spinner } from './ui/Spinner';
 import { usePendingAction } from '../hooks/usePendingAction';
+import { V2Icon } from './ui/V2Icon';
 
 interface TopicPickerProps {
   topics: TopicProgress[];
   onSelect: (topic: string) => void | Promise<void>;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
-function getAccuracy(topic: TopicProgress): number | null {
-  return topic.totalAttempts > 0
-    ? Math.round((topic.correctAttempts / topic.totalAttempts) * 100)
-    : null;
-}
+const PREVIEW_COUNT = 5;
+const normalizeTopic = (value: string) => value.trim().toLocaleLowerCase().replace(/\s/g, '');
 
-function getRecommendedTopic(topics: TopicProgress[]): TopicProgress | null {
-  const startedAndIncomplete = topics
-    .filter((topic) => topic.completed > 0 && topic.completed < topic.total)
-    .sort((a, b) => {
-      const accuracyDifference = (getAccuracy(a) ?? 101) - (getAccuracy(b) ?? 101);
-      const completionDifference =
-        a.completed / Math.max(1, a.total) - b.completed / Math.max(1, b.total);
-      return accuracyDifference || completionDifference;
-    });
-
-  if (startedAndIncomplete[0]) return startedAndIncomplete[0];
-
-  const unstarted = topics.find((topic) => topic.completed === 0);
-  if (unstarted) return unstarted;
-
-  return [...topics].sort((a, b) => (getAccuracy(a) ?? 101) - (getAccuracy(b) ?? 101))[0] ?? null;
-}
-
-function getRecommendationReason(topic: TopicProgress): string {
-  if (topic.completed === 0) return '从未开始的主题中，为你推荐这一项';
-  if (topic.completed < topic.total) return '继续未完成且当前正确率较低的主题';
-  return '所有主题已完成一轮，先巩固当前正确率较低的主题';
-}
-
-interface TopicCardProps {
-  topic: TopicProgress;
-  recommended?: boolean;
-  onSelect: (topic: string) => void;
-  loading?: boolean;
-  disabled?: boolean;
-}
-
-function TopicCard({ topic, recommended = false, onSelect, loading = false, disabled = false }: TopicCardProps) {
-  const accuracy = getAccuracy(topic);
-  const completed = topic.completed === topic.total && topic.total > 0;
-  const started = topic.completed > 0;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(topic.topic)}
-      disabled={disabled}
-      aria-disabled={loading || undefined}
-      aria-busy={loading || undefined}
-      className={`group flex min-h-[96px] w-full items-center gap-4 rounded-[1.25rem] border-2 px-4 py-3 text-left transition-[transform,box-shadow,border-color] duration-150 active:translate-y-[2px] disabled:cursor-not-allowed ${
-        recommended
-          ? 'border-brand-strong bg-brand-soft shadow-[0_4px_0_var(--ui-brand-shadow)] active:shadow-[0_1px_0_var(--ui-brand-shadow)]'
-          : 'border-line bg-surface shadow-[0_3px_0_var(--ui-line-strong)] hover:border-brand-strong active:shadow-[0_1px_0_var(--ui-line-strong)]'
-      }`}
-    >
-      <span
-        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
-          completed
-            ? 'bg-brand text-brand-ink'
-            : started
-              ? 'bg-info text-white'
-              : 'bg-surface-soft text-muted'
-        }`}
-      >
-        {loading
-          ? <Spinner size={21} />
-          : <Icon name={completed ? 'check' : started ? 'play' : 'book'} size={24} />}
-      </span>
-
-      <span className="min-w-0 flex-1">
-        <span className="flex items-start justify-between gap-3">
-          <span className="font-extrabold leading-snug text-ink [overflow-wrap:anywhere]">{topic.topic}</span>
-          <span className="shrink-0 text-xs font-extrabold tabular-nums text-muted">
-            {topic.completed}/{topic.total}
-          </span>
-        </span>
-        <ProgressBar
-          value={topic.completed}
-          max={topic.total}
-          label={`${topic.topic} 已完成 ${topic.completed} / ${topic.total}`}
-          tone={completed ? 'brand' : 'info'}
-          className="mt-2 h-2.5"
-        />
-        <span className="mt-2 flex items-center justify-between gap-3 text-xs font-bold text-muted">
-          {/* 数量已经由右上角的 x/y 和进度条表达，这里只补它们说不了的：正确率。 */}
-          <span>{completed ? '已完成一轮' : started ? '进行中' : '尚未开始'}</span>
-          <span>{loading ? '正在准备…' : accuracy === null ? '开始学习' : `正确率 ${accuracy}%`}</span>
-        </span>
-      </span>
-      <Icon name="chevron-right" size={21} className="shrink-0 text-faint group-hover:text-brand-strong" />
-    </button>
-  );
-}
-
-export function TopicPicker({ topics, onSelect, onBack }: TopicPickerProps) {
+export function TopicPicker({ topics, onSelect }: TopicPickerProps) {
   const { pendingKey, run } = usePendingAction();
-  // key 用 topic 名字，这样只有被点的那张卡转圈，其余的只是禁用。
-  const select = (topic: string) => { void run(topic, () => onSelect(topic)); };
-  const busy = pendingKey !== null;
-
-  const recommendedTopic = getRecommendedTopic(topics);
-  const otherTopics = topics.filter((topic) => topic.topic !== recommendedTopic?.topic);
+  const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const query = normalizeTopic(search);
+  const matches = topics.filter(({ topic }) => normalizeTopic(topic).includes(query));
+  const visibleTopics = query || showAll ? matches : matches.slice(0, PREVIEW_COUNT);
 
   return (
-    <div className="space-y-6">
-      <header>
-        <Pressable
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          leading={<Icon name="arrow-left" size={19} />}
-          className="-ml-3 mb-3"
-        >
-          返回首页
-        </Pressable>
-        <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">专题练习</h1>
-        <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-muted">
-          每次专注一个主题，练习会优先安排未做题。下面这个是按掌握情况推荐的，也可以自己挑。
-        </p>
+    <div className="mx-auto max-w-xl space-y-5">
+      <header className="space-y-5">
+        <h1 className="text-[26px] font-bold leading-9 text-ink">一次，突破一个主题。</h1>
+        <p className="text-sm leading-[22px] text-muted">按 Topic 集中练习，掌握得更扎实。</p>
       </header>
 
-      {recommendedTopic ? (
-        <section aria-labelledby="recommended-topic-heading" className="space-y-3">
-          <div>
-            <h2 id="recommended-topic-heading" className="text-lg font-black text-ink">建议下一步</h2>
-            <p className="mt-1 text-sm font-semibold text-muted">
-              {getRecommendationReason(recommendedTopic)}
-            </p>
-          </div>
-          <TopicCard
-            topic={recommendedTopic}
-            recommended
-            onSelect={select}
-            loading={pendingKey === recommendedTopic.topic}
-            disabled={busy && pendingKey !== recommendedTopic.topic}
-          />
-        </section>
-      ) : (
-        <p className="rounded-2xl bg-surface-soft p-4 text-sm font-semibold text-muted">
-          暂时没有可练习的 Topic。
+      <input
+        type="search"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        aria-label="搜索专题"
+        placeholder="搜索专题"
+        className="v2-field"
+      />
+
+      <p aria-live="polite" className="text-xs font-medium leading-[18px] text-muted">
+        {query ? `找到 ${matches.length} 个专题` : `${topics.length} 个专题 · 选择你想补强的内容`}
+      </p>
+
+      {visibleTopics.length === 0 ? (
+        <p className="rounded-[20px] border-2 border-line bg-surface p-5 text-sm text-muted">
+          {query ? '没有匹配的专题，试试其他关键词。' : '暂时没有可练习的专题。'}
         </p>
+      ) : (
+        <ul className="space-y-5" aria-label="CIPP/E 专题">
+          {visibleTopics.map((topic) => {
+            const loading = pendingKey === topic.topic;
+            return (
+              <li key={topic.topic}>
+                <button
+                  type="button"
+                  onClick={() => void run(topic.topic, () => onSelect(topic.topic))}
+                  disabled={pendingKey !== null && !loading}
+                  aria-disabled={loading || undefined}
+                  aria-busy={loading || undefined}
+                  className="block w-full space-y-2 rounded-[20px] border-2 border-line bg-surface p-4 text-left transition-colors hover:border-brand-line disabled:cursor-not-allowed"
+                >
+                  <span className="flex items-start justify-between gap-2 text-base font-bold leading-6 text-ink">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{topic.topic}</span>
+                    {loading ? <Spinner size={24} /> : <span className="flex shrink-0 text-muted"><V2Icon name="chevron" /></span>}
+                  </span>
+                  <span className="block text-xs font-medium leading-[18px] text-muted">
+                    {loading ? '正在准备…' : `${topic.completed} 题已练习`}
+                  </span>
+                  <ProgressBar
+                    value={topic.completed}
+                    max={topic.total}
+                    label={`${topic.topic} 已完成 ${topic.completed} / ${topic.total}`}
+                    className="h-3"
+                  />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
-      {otherTopics.length > 0 && (
-        <details className="group rounded-[1.25rem] border-2 border-line bg-surface px-4 py-2 shadow-[0_3px_0_var(--ui-line-strong)]">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-1 font-black text-ink marker:content-none [&::-webkit-details-marker]:hidden">
-            <span>其余 Topic</span>
-            <span className="flex items-center gap-2 text-sm font-extrabold text-muted">
-              {otherTopics.length} 个
-              <Icon name="chevron-right" size={20} className="transition-transform duration-150 group-open:rotate-90" />
-            </span>
-          </summary>
-          <ul className="space-y-3 border-t-2 border-line py-4" aria-label="其余 CIPPE Topic">
-            {otherTopics.map((topic) => (
-              <li key={topic.topic}>
-                <TopicCard
-                  topic={topic}
-                  onSelect={select}
-                  loading={pendingKey === topic.topic}
-                  disabled={busy && pendingKey !== topic.topic}
-                />
-              </li>
-            ))}
-          </ul>
-        </details>
+      {!query && !showAll && topics.length > PREVIEW_COUNT && (
+        <button type="button" onClick={() => setShowAll(true)} className="min-h-11 text-xs font-medium text-info-accent hover:underline">
+          查看全部 {topics.length} 个专题 →
+        </button>
       )}
     </div>
   );

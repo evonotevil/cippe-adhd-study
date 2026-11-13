@@ -1,0 +1,36 @@
+.practice-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--alert-offset, 0px));
+}
+
+.quiz-footer-edge,
+.quiz-header-edge {
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+}
+
+.quiz-safe-bottom {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+}
+
+.quiz-safe-top {
+  padding-top: calc(.5rem + env(safe-area-inset-top, 0px));
+}
+
+.app-has-timer-alert .quiz-safe-top { padding-top: .5rem; }
+
+.quiz-progress {
+  background: var(--ui-line);
+  box-shadow: none;
+}
+
+.quiz-progress > div {
+  background: var(--ui-brand);
+}
+
+.quiz-study-book {
+  width: 160px;
+  height: 140px;
+  position: relative;
+}

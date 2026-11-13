@@ -1,226 +1,198 @@
-import type { PracticeSession } from '../types';
-import { getSessionTitle } from '../domain/practice';
-import { Pressable } from './ui/Pressable';
-import { ProgressBar } from './ui/ProgressBar';
-import { Spinner } from './ui/Spinner';
 import { usePendingAction } from '../hooks/usePendingAction';
-import { Icon, type IconName } from './ui/Icons';
+import { getSessionTitle } from '../domain/practice';
+import type { PracticeSession } from '../types';
+import { STUDY_DAYS, STUDY_PHASES, type StudyDay } from '../data/studyPlan';
+import { getLongestCorrectStreak } from '../utils/streak';
+import { InstallHint } from './InstallHint';
+import { Pressable } from './ui/Pressable';
+import { WebStateCard } from './ui/WebStateCard';
+import { V2Icon, type V2IconName } from './ui/V2Icon';
+import book from '../assets/v2/shell-study-book.svg';
+import sparkles from '../assets/v2/shell-study-sparkles.svg';
 
-interface HomeProps {
-  unseenCount: number;
-  mistakeCount: number;
-  todayAnswered: number;
-  todayCorrect: number;
-  topicCount: number;
-  isFirstRun: boolean;
-  activeSession: PracticeSession | null;
-  // 这三个要等题库加载，所以允许返回 Promise —— 按钮据此决定转圈到什么时候。
-  onStartRecommended: () => void | Promise<void>;
-  onStartMistakes: () => void | Promise<void>;
-  onResume: () => void | Promise<void>;
-  onOpenTopics: () => void;
-  onOpenRandom: () => void;
-}
-
-interface ModeRowProps {
-  icon: IconName;
+function ActionRow({ icon, title, detail, onClick }: {
+  icon: V2IconName;
   title: string;
-  description: string;
   detail: string;
-  tone: 'danger' | 'info' | 'warning';
-  disabled?: boolean;
-  loading?: boolean;
   onClick: () => void;
-}
-
-const toneStyles = {
-  danger: 'bg-danger-soft text-danger-ink',
-  info: 'bg-info-soft text-info-ink',
-  warning: 'bg-warning-soft text-warning-ink',
-};
-
-function ModeRow({
-  icon,
-  title,
-  description,
-  detail,
-  tone,
-  disabled = false,
-  loading = false,
-  onClick,
-}: ModeRowProps) {
+}) {
   return (
-    <Pressable
-      variant="neutral"
-      block
-      disabled={disabled}
-      /* 不传 loading：ModeRow 自己在左侧图标位画 spinner，再让 Pressable 画一个
-         就成了两个转圈。这里只要 aria 语义。 */
-      aria-disabled={loading || undefined}
-      aria-busy={loading || undefined}
-      onClick={onClick}
-      className="min-h-[84px] justify-start px-4 py-3 text-left sm:px-5"
-    >
-      <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${toneStyles[tone]}`}>
-        {loading ? <Spinner size={22} /> : <Icon name={icon} size={25} />}
-      </span>
+    <button type="button" onClick={onClick} className="flex min-h-[82px] w-full items-center gap-3 rounded-2xl border-2 border-line bg-surface p-4 text-left text-muted hover:bg-surface-soft">
+      <V2Icon name={icon} />
       <span className="min-w-0 flex-1">
-        <span className="flex items-start justify-between gap-3">
-          <span className="text-base font-extrabold text-ink">{title}</span>
-          <span className="shrink-0 text-xs font-extrabold text-muted sm:text-sm">{detail}</span>
-        </span>
-        <span className="mt-1 block text-sm font-semibold leading-snug text-muted">{description}</span>
+        <span className="block text-base font-bold leading-6 text-ink">{title}</span>
+        <span className="mt-1 block text-xs font-medium leading-[18px]">{detail}</span>
       </span>
-      {loading
-        ? <span className="shrink-0 text-xs font-extrabold text-muted">正在准备…</span>
-        : !disabled && <Icon name="chevron-right" size={20} className="shrink-0 text-faint" />}
-    </Pressable>
+      <V2Icon name="chevron" />
+    </button>
   );
 }
 
-export function Home({
-  unseenCount,
-  mistakeCount,
-  todayAnswered,
-  todayCorrect,
-  topicCount,
-  isFirstRun,
-  activeSession,
-  onStartRecommended,
-  onStartMistakes,
-  onOpenTopics,
-  onOpenRandom,
-  onResume,
-}: HomeProps) {
-  const { pendingKey, run } = usePendingAction();
-  const busy = pendingKey !== null;
-  // 正在加载的那个保持可聚焦（只加 aria-disabled），其余的才真正 disabled。
-  const blocked = (key: string) => busy && pendingKey !== key;
+function Intro({ title, detail }: { title: string; detail: string }) {
+  return (
+    <>
+      <h1 className="text-[26px] font-bold leading-9 text-ink">{title}</h1>
+      <p className="text-sm leading-[22px] text-muted">{detail}</p>
+    </>
+  );
+}
 
-  const accuracy = todayAnswered > 0 ? Math.round((todayCorrect / todayAnswered) * 100) : 0;
-  const activeAnswered = activeSession?.mode === 'exam'
-    ? activeSession.items.filter((item) => item.selectedAnswer).length
-    : activeSession?.attempts.length ?? 0;
+function Metric({ value, label }: { value: string | number; label: string }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <p className="app-metric break-words text-[32px] font-extrabold leading-10 tabular-nums text-brand-strong">{value}</p>
+      <p className="text-xs font-medium leading-[18px] text-muted">{label}</p>
+    </div>
+  );
+}
+
+function ResumeRow({ session, onResume, onDiscard }: {
+  session: PracticeSession;
+  onResume: () => Promise<void>;
+  onDiscard: () => void;
+}) {
+  const { pendingKey, run } = usePendingAction();
+  const done = session.mode === 'exam' ? session.items.filter((item) => item.selectedAnswer).length : session.attempts.length;
+  return (
+    <WebStateCard title="接着上次的进度？" body={`${getSessionTitle(session)} · 已答 ${done} / ${session.items.length} 题。你可以继续答题，或放弃这组进度。`}>
+      <Pressable variant="featured" size="lg" block loading={pendingKey === 'resume'} onClick={() => { void run('resume', onResume); }}>
+        继续答题
+      </Pressable>
+      <Pressable variant="neutral" size="lg" block disabled={pendingKey !== null} onClick={onDiscard}>
+        放弃本次进度
+      </Pressable>
+    </WebStateCard>
+  );
+}
+
+interface HomeProps {
+  completedDays: number[];
+  nextDay: StudyDay | undefined;
+  activeSession: PracticeSession | null;
+  focusMinutes: number;
+  onOpenPlan: (day?: number) => void;
+  onOpenPractice: () => void;
+  onOpenMistakes: () => void;
+  onOpenTimer: () => void;
+  onResume: () => Promise<void>;
+  onDiscard: () => void;
+}
+
+export function Home({ completedDays, nextDay, activeSession, focusMinutes, onOpenPlan, onOpenPractice, onOpenMistakes, onOpenTimer, onResume, onDiscard }: HomeProps) {
+  const phaseIndex = Math.max(0, nextDay
+    ? STUDY_PHASES.findIndex(({ days }) => days.some(({ day }) => day === nextDay.day))
+    : STUDY_PHASES.length - 1);
+  const phase = STUDY_PHASES[phaseIndex];
 
   return (
-    <div className="space-y-6">
-      {/* Today's count and the question-bank bar live in the app header now, so
-          this block carries only what the header does not show. */}
-      <section aria-labelledby="home-heading" className="space-y-2">
-        <h1 id="home-heading" className="text-3xl font-black tracking-[-0.025em] text-ink">
-          {isFirstRun ? '先完成 5 题，找到起点' : '今天选一个小目标'}
-        </h1>
-        <p className="text-sm font-semibold text-muted">
-          {todayAnswered > 0
-            ? `今日正确率 ${accuracy}% · ${mistakeCount > 0 ? `${mistakeCount} 道错题待巩固` : '错题已清空'}`
-            : `还剩 ${unseenCount} 道未做${mistakeCount > 0 ? ` · ${mistakeCount} 道错题待巩固` : ''}`}
-        </p>
-      </section>
+    <div className="space-y-5">
+      <Intro title="今天，也前进一点。" detail="不用一次学很多，完成眼前这一关。" />
 
-      {activeSession && (
-        <button
-          type="button"
-          onClick={() => { void run('resume', onResume); }}
-          disabled={blocked('resume')}
-          aria-disabled={pendingKey === 'resume' || undefined}
-          aria-busy={pendingKey === 'resume' || undefined}
-          className="w-full rounded-[1.25rem] border-2 border-info-shadow bg-info-soft p-4 text-left shadow-[0_4px_0_var(--ui-info-shadow)] transition-[transform,box-shadow] duration-150 active:translate-y-[3px] active:shadow-[0_1px_0_var(--ui-info-shadow)] disabled:cursor-not-allowed"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-info text-white">
-              {pendingKey === 'resume' ? <Spinner size={19} /> : <Icon name="play" size={21} />}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs font-extrabold text-info-ink">继续未完成练习</span>
-              <span className="mt-0.5 block truncate font-black text-ink">{getSessionTitle(activeSession)}</span>
-              <span className="mt-2 block">
-                <ProgressBar
-                  value={activeAnswered}
-                  max={Math.max(1, activeSession.items.length)}
-                  label={`已完成 ${activeAnswered} / ${activeSession.items.length} 题`}
-                  tone="info"
-                  className="h-2"
-                />
-              </span>
-            </span>
-            <Icon name="chevron-right" size={22} className="text-info-ink" />
+      {activeSession && <ResumeRow session={activeSession} onResume={onResume} onDiscard={onDiscard} />}
+
+      <section aria-label="每日任务" className="space-y-3 rounded-3xl border-2 border-b-4 border-brand-line bg-brand-soft p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 space-y-2">
+            <p className="text-xs font-medium leading-[18px] text-brand-strong">{nextDay ? `第 ${nextDay.day} 天 · ${phase.title}` : '30 天备考 · 已完成'}</p>
+            <h2 className="max-w-[13ch] text-xl font-bold leading-7">{nextDay?.title ?? '恭喜完成备考路线！'}</h2>
+            <p className="text-xs font-medium leading-[18px] text-muted">
+              {nextDay ? `1 张学习卡${nextDay.practice ? ` · 约 ${nextDay.practice.count} 题` : ''}` : '随时回看课程，巩固知识点'}
+            </p>
           </div>
-        </button>
-      )}
-
-      <section aria-label="练习模式" className="space-y-4">
-        <Pressable
-          variant="featured"
-          block
-          size="lg"
-          onClick={() => { void run('recommended', onStartRecommended); }}
-          disabled={blocked('recommended')}
-          /* 同 ModeRow：spinner 画在下面那个大圆图标位里，不要让 Pressable 再画一个 */
-          aria-disabled={pendingKey === 'recommended' || undefined}
-          aria-busy={pendingKey === 'recommended' || undefined}
-          className="min-h-[116px] justify-start px-5 py-5 text-left"
-        >
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-surface/65 text-brand-ink">
-            {pendingKey === 'recommended'
-              ? <Spinner size={26} />
-              : <Icon name={unseenCount > 0 ? 'play' : 'refresh'} size={29} />}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-xl font-black tracking-[-0.02em]">
-              {pendingKey === 'recommended'
-                ? '正在准备题目…'
-                : isFirstRun ? '开始第一组 5 题' : '开始推荐 5 题'}
-            </span>
-            <span className="mt-1 block text-sm font-bold leading-snug opacity-80">
-              {isFirstRun
-                ? '约 4 分钟 · 每题都有即时反馈'
-                : unseenCount > 0
-                  ? '约 4 分钟 · 优先未做题 · 情景题连着做'
-                  : '约 4 分钟 · 回顾较久未练的题'}
-            </span>
-          </span>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface/55">
-            <Icon name="arrow-right" size={20} />
-          </span>
-        </Pressable>
-
-        <div className="space-y-3">
-          <ModeRow
-            icon="refresh"
-            title="错题复习"
-            description={
-              mistakeCount > 0
-                ? '连续答对两次，就算真正掌握'
-                : isFirstRun
-                  ? '做几题之后，答错的会自动收进来'
-                  : '暂无待复习错题，继续保持'
-            }
-            detail={mistakeCount > 0 ? `${mistakeCount} 题` : isFirstRun ? '还没有' : '已清空'}
-            tone="danger"
-            disabled={mistakeCount === 0 || blocked('mistakes')}
-            loading={pendingKey === 'mistakes'}
-            onClick={() => { void run('mistakes', onStartMistakes); }}
-          />
-          <ModeRow
-            icon="topics"
-            title="专题练习"
-            description="按掌握情况选择一个 Topic"
-            detail={`${topicCount} 个`}
-            tone="info"
-            disabled={busy}
-            onClick={onOpenTopics}
-          />
-          <ModeRow
-            icon="bolt"
-            title="随机组卷"
-            description="自选题数、范围和答题模式"
-            detail="5 / 10 / 20"
-            tone="warning"
-            disabled={busy}
-            onClick={onOpenRandom}
-          />
+          <div className="relative h-[91px] w-[104px] shrink-0" aria-hidden="true">
+            <img src={book} alt="" width={57.85} height={67.8167} className="absolute left-[22.1px] top-[13px]" />
+            <img src={sparkles} alt="" width={91.325} height={42.575} className="absolute left-[6.8px] top-[20.8px]" />
+          </div>
         </div>
+        <Pressable variant="featured" size="lg" block onClick={() => onOpenPlan(nextDay?.day)}>
+          {nextDay ? '开始今日学习' : '回看备考路线'}
+        </Pressable>
       </section>
+
+      <section aria-label="备考进度" className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border-2 border-line bg-surface p-4"><Metric value={`${completedDays.length} / ${STUDY_DAYS.length}`} label="已完成天数" /></div>
+        <div className="rounded-2xl border-2 border-line bg-surface p-4"><Metric value={`${phaseIndex + 1} / ${STUDY_PHASES.length}`} label={`当前阶段 · ${phase.title}`} /></div>
+      </section>
+
+      <h2 className="text-base font-bold leading-6">把学过的变成记住的</h2>
+      <ActionRow icon="refresh" title="错题复习" detail="从错题开始，补上一个知识缺口" onClick={onOpenMistakes} />
+      <ActionRow icon="timer" title={`专注 ${focusMinutes} 分钟`} detail="只做眼前这一件事，到点就休息" onClick={onOpenTimer} />
+      <button type="button" className="min-h-11 text-left text-xs font-medium text-info-accent hover:underline" onClick={onOpenPractice}>想换个节奏？到「练习」自由选题 →</button>
+      <InstallHint />
+    </div>
+  );
+}
+
+export function PracticeHub({ activeSession, topicCount, onResume, onDiscard, onRecommended, onTopics, onRandom, onMistakes }: {
+  activeSession: PracticeSession | null;
+  topicCount: number;
+  onResume: () => Promise<void>;
+  onDiscard: () => void;
+  onRecommended: () => Promise<void>;
+  onTopics: () => void;
+  onRandom: () => void;
+  onMistakes: () => void;
+}) {
+  const { pendingKey, run } = usePendingAction();
+  return (
+    <div className="space-y-5">
+      <Intro title="按你的节奏练。" detail="补弱项，或来一组小挑战。" />
+      {activeSession && <ResumeRow session={activeSession} onResume={onResume} onDiscard={onDiscard} />}
+      <section className="space-y-3 rounded-3xl border-2 border-info-line bg-info-soft p-5">
+        <span className="block text-muted"><V2Icon name="bolt" /></span>
+        <h2 className="text-xl font-bold leading-7">先来 5 题，找找手感</h2>
+        <p className="text-sm leading-[22px] text-muted">约 4 分钟 · 每题都有即时反馈</p>
+        <Pressable variant="featured" size="lg" block loading={pendingKey === 'recommended'} onClick={() => { void run('recommended', onRecommended); }}>开始 5 题练习</Pressable>
+      </section>
+      <h2 className="text-base font-bold leading-6">选择一种练法</h2>
+      <ActionRow icon="topics" title="专题练习" detail={`${topicCount} 个专题 · 一次突破一个主题`} onClick={onTopics} />
+      <ActionRow icon="bolt" title="随机组卷" detail="自选题数、范围和答题模式" onClick={onRandom} />
+      <ActionRow icon="refresh" title="错题复习" detail="答错的自动收集，练会为止" onClick={onMistakes} />
+      <section className="space-y-2 rounded-[20px] border-2 border-line bg-surface p-5">
+        <h2 className="text-base font-bold leading-6">练习与考试，有不同节奏</h2>
+        <p className="text-sm leading-[22px] text-muted">学习模式：每题即时反馈<br />考试模式：交卷后统一看结果</p>
+      </section>
+    </div>
+  );
+}
+
+export function Profile({ lastResult, onAchievements, onTimer, onSettings, onData }: {
+  lastResult: PracticeSession | null;
+  onAchievements: () => void;
+  onTimer: () => void;
+  onSettings: () => void;
+  onData: () => void;
+}) {
+  const answered = lastResult?.attempts.length ?? 0;
+  const total = lastResult?.mode === 'exam' ? lastResult.items.length : answered;
+  const accuracy = lastResult && total > 0
+    ? `${Math.round(lastResult.attempts.filter((attempt) => attempt.isCorrect).length / total * 100)}%` : '—';
+  return (
+    <div className="space-y-5">
+      <Intro title="每一步，都算数。" detail="记录积累，也找到适合自己的节奏。" />
+      <section className="space-y-3 rounded-[20px] border-2 border-brand-line bg-brand-soft p-5">
+        <h2 className="text-base font-bold leading-6 text-brand-strong">最近一组练习</h2>
+        {lastResult && answered > 0 ? (
+          <div className="grid grid-cols-3 gap-3">
+            <Metric value={answered} label="完成题数" />
+            <Metric value={accuracy} label="正确率" />
+            <Metric value={getLongestCorrectStreak(lastResult.items, lastResult.attempts)} label="最长连对" />
+          </div>
+        ) : <p className="text-sm leading-[22px] text-muted">完成一组练习后，就能在这里回看小结。</p>}
+      </section>
+      <ActionRow icon="trophy" title="成就收藏" detail="18 个里程碑，收藏你的学习足迹" onClick={onAchievements} />
+      <ActionRow icon="timer" title="专注节奏" detail="番茄钟 · 专注与休息时长" onClick={onTimer} />
+      <ActionRow icon="settings" title="学习设置" detail="主题、字体大小与答题声音" onClick={onSettings} />
+      <ActionRow icon="book" title="学习数据" detail="导入与导出，备份你的学习记录" onClick={onData} />
+      <section className="space-y-2 rounded-[20px] border-2 border-warning-line bg-warning-soft p-5 text-warning-ink">
+        <h2 className="text-base font-bold leading-6">不需要完美，保持前进就好。</h2>
+        <p className="text-sm leading-[22px]">做错的题，也是下一次进步的起点。</p>
+      </section>
+      {import.meta.env.MODE === 'pages-v2' && (
+        <a href="../" className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-info-accent hover:underline">
+          返回经典版 <V2Icon name="chevron" />
+        </a>
+      )}
     </div>
   );
 }

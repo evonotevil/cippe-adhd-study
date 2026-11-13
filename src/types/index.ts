@@ -64,6 +64,7 @@ export interface PracticeAttempt {
 
 export interface PracticeSession {
   id: string;
+  studyDay?: number;
   kind: PracticeKind;
   mode: PracticeMode;
   phase: PracticePhase;

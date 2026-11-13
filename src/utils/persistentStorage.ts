@@ -6,6 +6,10 @@
 // key, collapsed to the newest value, and flushed when the browser is idle —
 // or immediately when the data is about to be read or the page is going away.
 
+export const ACTIVE_SESSION_STORAGE_KEY = import.meta.env.BASE_URL.endsWith('/v2/')
+  ? 'cippe-v2-active-session'
+  : 'cippe-active-session';
+
 const pendingValues = new Map<string, unknown>();
 let scheduledHandle: number | null = null;
 let listenersAttached = false;
@@ -21,20 +25,24 @@ function cancelScheduledFlush(): void {
   scheduledHandle = null;
 }
 
-export function flushPendingWrites(): void {
+export function flushPendingWrites(): boolean {
   cancelScheduledFlush();
-  if (pendingValues.size === 0) return;
+  if (pendingValues.size === 0) return true;
 
   const entries = [...pendingValues];
   pendingValues.clear();
+  let saved = true;
 
   for (const [key, value] of entries) {
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
+      saved = false;
+      pendingValues.set(key, value);
       console.error(`Error writing localStorage key "${key}":`, error);
     }
   }
+  return saved;
 }
 
 function attachFlushListeners(): void {
@@ -68,4 +76,9 @@ export function readStoredValue<T>(key: string, fallback: T): T {
     console.error(`Error reading localStorage key "${key}":`, error);
     return fallback;
   }
+}
+
+export function savePracticeDraft(value: unknown): boolean {
+  queueWrite(ACTIVE_SESSION_STORAGE_KEY, value);
+  return flushPendingWrites();
 }

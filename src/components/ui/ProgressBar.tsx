@@ -11,7 +11,7 @@ interface ProgressBarProps {
 }
 
 const toneClasses: Record<ProgressTone, string> = {
-  brand: 'bg-brand-strong',
+  brand: 'bg-brand',
   info: 'bg-info',
   warning: 'bg-warning',
   danger: 'bg-danger',
@@ -35,7 +35,7 @@ export function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={safeMax}
       aria-valuenow={Math.min(safeMax, Math.max(0, value))}
-      className={`h-3 overflow-hidden rounded-full bg-surface-soft shadow-[inset_0_1px_2px_var(--ui-shadow-color)] ${className}`}
+      className={`h-3 overflow-hidden rounded-full bg-line ${className}`}
     >
       <m.div
         className={`h-full w-full origin-left rounded-full ${toneClasses[tone]}`}

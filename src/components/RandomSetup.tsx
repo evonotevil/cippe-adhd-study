@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { RandomPracticeSettings, TopicProgress } from '../types';
-import { Icon } from './ui/Icons';
+import { Chip } from './ui/Chip';
 import { Pressable } from './ui/Pressable';
 import { usePendingAction } from '../hooks/usePendingAction';
 
@@ -8,175 +8,104 @@ interface RandomSetupProps {
   initialSettings: RandomPracticeSettings;
   topics: TopicProgress[];
   onStart: (settings: RandomPracticeSettings) => void | Promise<void>;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 const COUNT_PRESETS = [5, 10, 20];
 
-export function RandomSetup({ initialSettings, topics, onStart, onBack }: RandomSetupProps) {
+export function RandomSetup({ initialSettings, topics, onStart }: RandomSetupProps) {
   const { pendingKey, run } = usePendingAction();
-  const [count, setCount] = useState(initialSettings.count);
+  const [preset, setPreset] = useState(COUNT_PRESETS.includes(initialSettings.count) ? initialSettings.count : 10);
+  const [customCount, setCustomCount] = useState(COUNT_PRESETS.includes(initialSettings.count) ? '' : String(initialSettings.count));
   const [topic, setTopic] = useState<string | null>(initialSettings.topic);
   const [mode, setMode] = useState(initialSettings.mode);
-  const [custom, setCustom] = useState(!COUNT_PRESETS.includes(initialSettings.count));
 
-  const availableCount = useMemo(() => {
-    if (!topic) return topics.reduce((sum, item) => sum + item.total, 0);
-    return topics.find((item) => item.topic === topic)?.total ?? 0;
-  }, [topic, topics]);
-
-  const effectiveCount = Math.min(Math.max(1, count), availableCount);
+  const availableCount = topic
+    ? topics.find((item) => item.topic === topic)?.total ?? 0
+    : topics.reduce((sum, item) => sum + item.total, 0);
+  const count = customCount === '' ? preset : Number(customCount);
+  const validCount = Number.isSafeInteger(count) && count > 0;
+  const effectiveCount = validCount ? Math.min(count, availableCount) : 0;
 
   return (
-    <div className="space-y-7">
-      <header>
-        <Pressable
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          leading={<Icon name="arrow-left" size={19} />}
-          className="-ml-3 mb-3"
-        >
-          返回首页
-        </Pressable>
-        <p className="text-sm font-extrabold text-warning-ink">自定义挑战</p>
-        <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">随机组卷</h1>
-        <p className="mt-2 text-sm font-medium text-muted">题目不重复，并优先抽取尚未做过的内容。</p>
+    <div className="mx-auto max-w-xl space-y-5">
+      <header className="space-y-5">
+        <h1 className="text-[26px] font-bold leading-9 text-ink">给自己一组小挑战。</h1>
+        <p className="text-sm leading-[22px] text-muted">题目不重复，优先抽取未做过的内容。</p>
       </header>
 
-      <fieldset className="space-y-4 border-0 p-0">
-        <legend className="flex items-center gap-3 text-lg font-black text-ink">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-sm text-brand-ink">1</span>
-          做多少题？
-        </legend>
-        <div className="grid grid-cols-2 gap-2 min-[360px]:grid-cols-4" role="group" aria-label="选择题数">
-          {COUNT_PRESETS.map((preset) => (
-            <Pressable
-              key={preset}
-              variant={!custom && count === preset ? 'primary' : 'neutral'}
-              size="sm"
-              aria-pressed={!custom && count === preset}
-              onClick={() => {
-                setCount(preset);
-                setCustom(false);
-              }}
-              className="px-2"
-            >
-              {preset} 题
-            </Pressable>
-          ))}
-          <Pressable
-            variant={custom ? 'primary' : 'neutral'}
-            size="sm"
-            aria-pressed={custom}
-            onClick={() => setCustom(true)}
-            className="px-2"
-          >
-            自定义
-          </Pressable>
-        </div>
-        {custom && (
-          <label className="block rounded-2xl bg-surface-soft p-4">
-            <span className="mb-2 block text-sm font-extrabold text-ink">输入题数</span>
-            <input
-              type="number"
-              min={1}
-              max={availableCount}
-              inputMode="numeric"
-              value={count}
-              onChange={(event) => setCount(Math.max(1, Number(event.target.value) || 1))}
-              className="min-h-12 w-full rounded-xl border-2 border-line-strong bg-surface px-4 py-3 text-base font-bold text-ink outline-none transition-shadow focus:border-info focus:ring-4 focus:ring-[var(--ui-focus)]"
-            />
-          </label>
-        )}
-      </fieldset>
-
-      <div className="h-0.5 bg-line" aria-hidden="true" />
-
-      <fieldset className="space-y-4 border-0 p-0">
-        <legend className="flex items-center gap-3 text-lg font-black text-ink">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info text-sm text-white">2</span>
-          从哪里出题？
-        </legend>
-        <label className="block">
-          <span className="mb-2 block text-sm font-bold text-muted">Topic 范围</span>
-          <div className="relative">
-            <select
-              value={topic ?? ''}
-              onChange={(event) => setTopic(event.target.value || null)}
-              className="min-h-13 w-full appearance-none rounded-2xl border-2 border-line-strong bg-surface px-4 py-3 pr-12 text-base font-bold text-ink shadow-[0_3px_0_var(--ui-line-strong)] outline-none transition-shadow focus:border-info focus:ring-4 focus:ring-[var(--ui-focus)]"
-            >
-              <option value="">全部 Topic 混合</option>
-              {topics.map((item) => (
-                <option key={item.topic} value={item.topic}>
-                  {item.topic}（{item.total} 题）
-                </option>
-              ))}
-            </select>
-            <Icon
-              name="chevron-right"
-              size={21}
-              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 rotate-90 text-muted"
-            />
+      <section aria-label="组卷配置" className="space-y-5 rounded-[20px] border-2 border-line bg-surface p-5">
+        <fieldset className="min-w-0 border-0 p-0">
+          <legend className="mb-5 text-base font-bold leading-6 text-ink">01&nbsp; 做多少题？</legend>
+          <div className="grid grid-cols-3 gap-2">
+            {COUNT_PRESETS.map((option) => (
+              <Chip
+                key={option}
+                aria-pressed={customCount === '' && preset === option}
+                onClick={() => { setPreset(option); setCustomCount(''); }}
+              >
+                {option} 题
+              </Chip>
+            ))}
           </div>
+          <input
+            type="number"
+            min={1}
+            max={availableCount || undefined}
+            step={1}
+            inputMode="numeric"
+            value={customCount}
+            placeholder="自定义题数"
+            aria-label="自定义题数"
+            aria-invalid={customCount !== '' && !validCount}
+            aria-describedby={!validCount ? 'question-count-error' : undefined}
+            onChange={(event) => setCustomCount(event.target.value)}
+            className="v2-field mt-5"
+          />
+        </fieldset>
+
+        <label className="block">
+          <span className="mb-5 block text-base font-bold leading-6 text-ink">02&nbsp; 从哪里抽题？</span>
+          <select
+            value={topic ?? ''}
+            onChange={(event) => setTopic(event.target.value || null)}
+            className="pressable w-full text-center"
+          >
+            <option value="">全部 Topic</option>
+            {topics.map((item) => <option key={item.topic} value={item.topic}>{item.topic}（{item.total} 题）</option>)}
+          </select>
         </label>
-        {count > availableCount && (
-          <p role="status" className="rounded-2xl bg-warning-soft px-4 py-3 text-sm font-bold text-warning-ink">
-            当前范围只有 {availableCount} 题，本次将使用全部题目。
+
+        <fieldset className="min-w-0 border-0 p-0">
+          <legend className="mb-5 text-base font-bold leading-6 text-ink">03&nbsp; 怎么答？</legend>
+          <div className="grid grid-cols-2 gap-2">
+            <Chip aria-pressed={mode === 'study'} onClick={() => setMode('study')}>学习模式</Chip>
+            <Chip aria-pressed={mode === 'exam'} onClick={() => setMode('exam')}>考试模式</Chip>
+          </div>
+          <p className="mt-5 text-xs leading-[18px] text-muted">
+            学习模式：每题提交后查看反馈<br />
+            考试模式：交卷后统一看结果
           </p>
-        )}
-        {/* 情景组是不可拆的，所以这里承诺的是"约"，不是"正好"。先说清楚，别让人到了做题页才发现多出两题。 */}
-        <p className="text-xs font-semibold leading-relaxed text-muted">
-          共用一段长背景的情景题会整组一起出，所以实际题数可能比这个数略多几题。
-        </p>
-      </fieldset>
+        </fieldset>
+      </section>
 
-      <div className="h-0.5 bg-line" aria-hidden="true" />
+      {validCount && count > availableCount && (
+        <p role="status" className="text-sm text-warning-ink">当前范围只有 {availableCount} 题，将使用全部题目。</p>
+      )}
+      {!validCount && <p id="question-count-error" role="status" className="text-sm text-danger-accent">请输入大于 0 的整数。</p>}
 
-      <fieldset className="space-y-4 border-0 p-0">
-        <legend className="flex items-center gap-3 text-lg font-black text-ink">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning text-sm text-warning-solid-ink">3</span>
-          怎么答题？
-        </legend>
-        <div className="grid grid-cols-2 gap-3" role="group" aria-label="选择答题模式">
-          <Pressable
-            variant={mode === 'study' ? 'primary' : 'neutral'}
-            aria-pressed={mode === 'study'}
-            onClick={() => setMode('study')}
-            className="min-h-[100px] flex-col px-3 text-center"
-            leading={<Icon name="book" size={24} />}
-          >
-            <span className="font-black">学习模式</span>
-            <span className="text-xs font-semibold opacity-90">每题立即看解析</span>
-          </Pressable>
-          <Pressable
-            variant={mode === 'exam' ? 'secondary' : 'neutral'}
-            aria-pressed={mode === 'exam'}
-            onClick={() => setMode('exam')}
-            className="min-h-[100px] flex-col px-3 text-center"
-            leading={<Icon name="target" size={24} />}
-          >
-            <span className="font-black">考试模式</span>
-            <span className="text-xs font-semibold opacity-90">交卷后统一查看</span>
-          </Pressable>
-        </div>
-      </fieldset>
-
-      <div className="pt-2">
-        <Pressable
-          variant="primary"
-          size="lg"
-          block
-          loading={pendingKey === 'start'}
-          onClick={() => {
-            void run('start', () => onStart({ count: effectiveCount, topic, mode }));
-          }}
-          disabled={availableCount === 0}
-          trailing={<Icon name="arrow-right" size={21} />}
-        >
-          开始 {effectiveCount} 题 · {mode === 'study' ? '学习' : '考试'}
-        </Pressable>
-      </div>
+      <Pressable
+        variant="featured"
+        size="lg"
+        block
+        className="min-h-14"
+        loading={pendingKey === 'start'}
+        disabled={effectiveCount === 0}
+        onClick={() => void run('start', () => onStart({ count: effectiveCount, topic, mode }))}
+      >
+        开始组卷{effectiveCount > 0 ? ` · ${effectiveCount} 题` : ''}
+      </Pressable>
+      <p className="text-xs leading-[18px] text-muted">情景题会整组一起出，实际题数可能略多。</p>
     </div>
   );
 }

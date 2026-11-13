@@ -367,6 +367,7 @@ export function addReinforcementRound(
 }
 
 export function getSessionTitle(session: PracticeSession): string {
+  if (session.studyDay) return `第 ${session.studyDay} 天 · ${session.mode === 'exam' ? '模拟考试' : '备考练习'}`;
   if (session.kind === 'mistakes') return '错题复习';
   if (session.kind === 'topic') return session.topic ? `${session.topic} · 专题练习` : '专题练习';
   if (session.kind === 'random') {

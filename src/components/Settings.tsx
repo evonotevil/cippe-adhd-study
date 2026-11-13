@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   PracticeSession,
   RandomPracticeSettings,
@@ -8,13 +8,22 @@ import type {
 } from '../types';
 import { useDataTransfer } from '../hooks/useDataTransfer';
 import { QUESTION_COUNT } from '../data/questionCatalog';
+import { STUDY_DAYS } from '../data/studyPlan';
 import { useSound } from '../hooks/useSound';
-import { flushPendingWrites } from '../utils/persistentStorage';
+import { ACTIVE_SESSION_STORAGE_KEY, flushPendingWrites } from '../utils/persistentStorage';
 import { DeviceSync } from './DeviceSync';
-import { Icon, type IconName } from './ui/Icons';
+import { Chip } from './ui/Chip';
 import { Pressable } from './ui/Pressable';
+import { ConfirmationDialog } from './ui/ConfirmationDialog';
+import { WebStateCard } from './ui/WebStateCard';
+import soundOff from './assets/v2-utility/sound-off.svg';
+import soundOn from './assets/v2-utility/sound-on.svg';
+
+export type SettingsSection = 'focus' | 'display' | 'data';
 
 interface SettingsProps {
+  initialSection?: SettingsSection;
+  onBack?: () => void;
   settings: StudySettings;
   onUpdate: (settings: StudySettings) => void;
   progress: UserProgress[];
@@ -22,18 +31,27 @@ interface SettingsProps {
   onApplySynced: (progress: UserProgress[], stats: UserStats) => void;
 }
 
-const themeOptions: Array<{ value: StudySettings['theme']; label: string; icon: IconName }> = [
-  { value: 'light', label: '明亮', icon: 'sun' },
-  { value: 'eye-care', label: '护眼', icon: 'leaf' },
-  { value: 'dark', label: '深色', icon: 'moon' },
+const themeOptions: Array<{ value: StudySettings['theme']; label: string }> = [
+  { value: 'light', label: '明亮' },
+  { value: 'eye-care', label: '护眼' },
+  { value: 'dark', label: '深色' },
 ];
+
+const sizeOptions: Array<{ value: StudySettings['fontSize']; label: string }> = [
+  { value: 'small', label: '较小' },
+  { value: 'medium', label: '标准' },
+  { value: 'large', label: '大' },
+];
+
 
 interface ImportData {
   progress: UserProgress[];
   stats: UserStats;
   settings: StudySettings;
   activeSession?: PracticeSession | null;
+  lastResult?: PracticeSession | null;
   randomSettings?: RandomPracticeSettings | null;
+  completedStudyDays?: number[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -81,6 +99,7 @@ function isPracticeSession(value: unknown): value is PracticeSession {
   const itemCount = Array.isArray(value.items) ? value.items.length : 0;
 
   return typeof value.id === 'string'
+    && (value.studyDay === undefined || isIntegerInRange(value.studyDay, 1, STUDY_DAYS.length))
     && ['all', 'mistakes', 'topic', 'random'].includes(String(value.kind))
     && ['study', 'exam'].includes(String(value.mode))
     && ['new', 'reinforce'].includes(String(value.phase))
@@ -121,11 +140,15 @@ function isImportData(value: unknown): value is ImportData {
   const validActiveSession = value.activeSession === undefined
     || value.activeSession === null
     || isPracticeSession(value.activeSession);
+  const validLastResult = value.lastResult === undefined || value.lastResult === null || isPracticeSession(value.lastResult);
   const validRandomSettings = value.randomSettings === undefined
     || value.randomSettings === null
     || isRandomSettings(value.randomSettings);
 
-  return validProgress && validStats && validSettings && validActiveSession && validRandomSettings;
+  const validStudyDays = value.completedStudyDays === undefined
+    || (Array.isArray(value.completedStudyDays)
+      && value.completedStudyDays.every((day) => isIntegerInRange(day, 1, STUDY_DAYS.length)));
+  return validProgress && validStats && validSettings && validActiveSession && validLastResult && validRandomSettings && validStudyDays;
 }
 
 function readProgressCount(): number {
@@ -154,57 +177,52 @@ interface DurationFieldProps {
   label: string;
   value: number;
   presets: number[];
-  tone: 'danger' | 'brand';
   onChange: (value: number) => void;
 }
-
-const durationTone = {
-  danger: {
-    active: 'border-danger-shadow bg-danger-soft text-danger-ink shadow-[0_3px_0_var(--ui-danger-shadow)]',
-  },
-  brand: {
-    active: 'border-brand-shadow bg-brand-soft text-brand-soft-ink shadow-[0_3px_0_var(--ui-brand-shadow)]',
-  },
-};
 
 /**
  * 预设按钮就是全部选项，没有滑块 —— 手机上 30 个档位挤在一条轨道里根本点不准。
  * 老数据里可能存着预设之外的值（早期版本用滑块选的），那就把它作为额外一档
  * 显示出来，免得界面上一个选中项都没有。
  */
-function DurationField({ label, value, presets, tone, onChange }: DurationFieldProps) {
+function DurationField({ label, value, presets, onChange }: DurationFieldProps) {
   const options = presets.includes(value) ? presets : [...presets, value].sort((a, b) => a - b);
 
   return (
-    <fieldset className="rounded-[1.25rem] border-2 border-line bg-surface p-4 shadow-[0_3px_0_var(--ui-line-strong)]">
-      <legend className="px-1 text-sm font-extrabold text-ink">{label}</legend>
-      <div className="mt-1 grid grid-cols-3 gap-2">
+    <fieldset className="min-w-0 border-0 p-0">
+      <legend className="mb-5 text-xs font-medium leading-[18px] text-muted">{label}</legend>
+      <div className="grid grid-cols-3 gap-2">
         {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            aria-pressed={value === option}
-            onClick={() => onChange(option)}
-            className={`min-h-12 rounded-xl border-2 text-sm font-extrabold tabular-nums transition-colors ${
-              value === option
-                ? durationTone[tone].active
-                : 'border-line bg-surface-soft text-muted hover:text-ink'
-            }`}
-          >
+          <Chip key={option} aria-pressed={value === option} onClick={() => onChange(option)}>
             {option} 分钟
-          </button>
+          </Chip>
         ))}
       </div>
     </fieldset>
   );
 }
 
-export function Settings({ settings, onUpdate, progress, stats, onApplySynced }: SettingsProps) {
+export function Settings({ settings, onUpdate, progress, stats, onApplySynced, initialSection }: SettingsProps) {
   const [localSettings, setLocalSettings] = useState(settings);
   const { exportToFile, importFromFile } = useDataTransfer();
   const { playCorrect } = useSound(localSettings.soundEnabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingImport, setPendingImport] = useState<ImportData | null>(null);
   const [importMessage, setImportMessage] = useState<{ text: string; tone: 'error' | 'success' | 'info' } | null>(null);
+
+  const focusSection = useRef<HTMLElement>(null);
+  const displaySection = useRef<HTMLElement>(null);
+  const dataSection = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!initialSection) return;
+    const target = { focus: focusSection, display: displaySection, data: dataSection }[initialSection].current;
+    const frame = requestAnimationFrame(() => {
+      target?.scrollIntoView({ block: 'start' });
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [initialSection]);
 
   const handleChange = <K extends keyof StudySettings>(key: K, value: StudySettings[K]) => {
     const updated = { ...localSettings, [key]: value };
@@ -216,12 +234,14 @@ export function Settings({ settings, onUpdate, progress, stats, onApplySynced }:
     // Reads localStorage directly, so any queued write has to land first.
     flushPendingWrites();
     const data = {
-      version: 2,
+      version: 4,
       progress: JSON.parse(localStorage.getItem('cippe-progress') || '[]'),
       stats: JSON.parse(localStorage.getItem('cippe-stats') || '{}'),
       settings: localSettings,
-      activeSession: JSON.parse(localStorage.getItem('cippe-active-session') || 'null'),
+      activeSession: JSON.parse(localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY) || 'null'),
+      lastResult: JSON.parse(localStorage.getItem('cippe-last-result') || 'null'),
       randomSettings: JSON.parse(localStorage.getItem('cippe-random-settings') || 'null'),
+      completedStudyDays: JSON.parse(localStorage.getItem('cippe-study-plan-v1') || '[]'),
       lastSync: new Date().toISOString(),
     };
     exportToFile(data);
@@ -239,32 +259,35 @@ export function Settings({ settings, onUpdate, progress, stats, onApplySynced }:
         return;
       }
 
-      // Replacing the answer log is the only irreversible action in the app, and
-      // the export button sits right next to this one. Say what will be lost.
-      flushPendingWrites();
-      const currentCount = readProgressCount();
-      const incomingCount = data.progress.length;
-      const confirmed = window.confirm(
-        `导入会替换这台设备上的全部学习数据，且无法撤销。\n\n`
-        + `当前：${currentCount} 条答题记录\n`
-        + `导入：${incomingCount} 条答题记录\n\n`
-        + `确定继续吗？`,
-      );
-      if (!confirmed) {
-        setImportMessage({ text: '已取消导入，现有数据没有任何改动。', tone: 'info' });
-        return;
-      }
+      setPendingImport(data);
+    } catch {
+      setImportMessage({ text: '未能读取备份文件，请检查文件后重试。', tone: 'error' });
+    } finally {
+      event.target.value = '';
+    }
+  };
 
+  const confirmImport = () => {
+    const data = pendingImport;
+    if (!data) return;
+    setPendingImport(null);
+    try {
+      flushPendingWrites();
+      const incomingCount = data.progress.length;
       const entries: Array<[string, unknown]> = [
         ['cippe-progress', data.progress],
         ['cippe-stats', data.stats],
         ['cippe-settings', data.settings],
+        ['cippe-last-result', data.lastResult ?? null],
       ];
       if (data.activeSession !== undefined) {
-        entries.push(['cippe-active-session', data.activeSession]);
+        entries.push([ACTIVE_SESSION_STORAGE_KEY, data.activeSession]);
       }
       if (data.randomSettings !== undefined) {
         entries.push(['cippe-random-settings', data.randomSettings]);
+      }
+      if (data.completedStudyDays !== undefined) {
+        entries.push(['cippe-study-plan-v1', [...new Set(data.completedStudyDays)]]);
       }
       replaceLocalData(entries);
       onUpdate(data.settings);
@@ -273,25 +296,21 @@ export function Settings({ settings, onUpdate, progress, stats, onApplySynced }:
       window.setTimeout(() => window.location.reload(), 1200);
     } catch {
       setImportMessage({ text: '导入失败，现有学习数据没有被替换。请检查文件后重试。', tone: 'error' });
-    } finally {
-      event.target.value = '';
     }
   };
 
   return (
-    <div className="space-y-7">
+    <div className="mx-auto max-w-xl space-y-5">
       <header>
-        <p className="text-sm font-extrabold text-info-accent">按你的节奏学习</p>
-        <h1 className="mt-1 text-3xl font-black tracking-[-0.025em] text-ink">设置</h1>
+        <h1 className="text-xl font-bold leading-7 text-ink">找到舒服的学习方式。</h1>
       </header>
 
-      <section className="space-y-5" aria-labelledby="focus-settings">
-        <h2 id="focus-settings" className="text-lg font-black text-ink">专注节奏</h2>
+      <section ref={focusSection} tabIndex={-1} className="scroll-mt-24 space-y-5" aria-labelledby="focus-settings">
+        <h2 id="focus-settings" className="text-base font-bold leading-6 text-ink">专注节奏</h2>
         <DurationField
-          label="番茄钟时长"
+          label="专注时长"
           value={localSettings.tomatoDuration}
           presets={[15, 25, 45]}
-          tone="danger"
           onChange={(value) => handleChange('tomatoDuration', value)}
         />
 
@@ -299,127 +318,76 @@ export function Settings({ settings, onUpdate, progress, stats, onApplySynced }:
           label="休息时长"
           value={localSettings.breakDuration}
           presets={[5, 10, 15]}
-          tone="brand"
           onChange={(value) => handleChange('breakDuration', value)}
         />
       </section>
 
-      <div className="h-0.5 bg-line" aria-hidden="true" />
+      <section ref={displaySection} tabIndex={-1} className="scroll-mt-24 space-y-5" aria-labelledby="display-settings">
+        <h2 id="display-settings" className="text-base font-bold leading-6 text-ink">显示与反馈</h2>
 
-      <section className="space-y-4" aria-labelledby="display-settings">
-        <h2 id="display-settings" className="text-lg font-black text-ink">显示与反馈</h2>
-
-        <div className="flex min-h-16 items-center justify-between gap-4 rounded-[1.25rem] border-2 border-line bg-surface px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-info-soft text-info-ink">
-              <Icon name={localSettings.soundEnabled ? 'volume' : 'volume-off'} size={21} />
-            </span>
-            <div>
-              <p className="font-extrabold text-ink">答题音效</p>
-              <p className="text-xs font-semibold text-muted">正确与错误时提供声音反馈</p>
-            </div>
+        <fieldset className="min-w-0 border-0 p-0">
+          <legend className="sr-only">界面主题</legend>
+          <div className="grid grid-cols-3 gap-2">
+            {themeOptions.map((option) => (
+              <Chip
+                key={option.value}
+                aria-pressed={localSettings.theme === option.value}
+                onClick={() => handleChange('theme', option.value)}
+              >
+                {option.label}
+              </Chip>
+            ))}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Pressable
-              variant="ghost"
-              size="sm"
+        </fieldset>
+
+        <fieldset className="min-w-0 border-0 p-0">
+          <legend className="mb-5 text-xs font-medium leading-[18px] text-muted">字体大小</legend>
+          <div className="grid grid-cols-3 gap-2">
+            {sizeOptions.map((option) => (
+              <Chip
+                key={option.value}
+                aria-pressed={localSettings.fontSize === option.value}
+                onClick={() => handleChange('fontSize', option.value)}
+              >
+                {option.label}
+              </Chip>
+            ))}
+          </div>
+        </fieldset>
+
+        <div className="flex min-h-[68px] flex-wrap items-center justify-between gap-2 rounded-[20px] border-2 border-line bg-surface p-4">
+          <p id="sound-label" className="text-sm font-bold text-ink">答题声音</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="min-h-11 rounded-xl px-2 text-xs font-medium text-info-accent disabled:text-muted"
               disabled={!localSettings.soundEnabled}
               onClick={() => void playCorrect(3)}
               aria-label="试听答题音效"
-              className="px-2.5"
             >
               试听
-            </Pressable>
+            </button>
             <button
               type="button"
               role="switch"
+              aria-labelledby="sound-label"
               aria-checked={localSettings.soundEnabled}
               onClick={() => handleChange('soundEnabled', !localSettings.soundEnabled)}
-              className={`relative h-11 w-16 shrink-0 rounded-full border-2 transition-colors ${
-                localSettings.soundEnabled
-                  ? 'border-brand-shadow bg-brand'
-                  : 'border-line-strong bg-surface-soft'
-              }`}
+              className="grid min-h-11 min-w-[52px] place-items-center rounded-full"
             >
-              <span
-                className={`absolute left-1 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full bg-surface shadow-sm transition-transform ${
-                  localSettings.soundEnabled ? 'translate-x-[28px]' : 'translate-x-0'
-                }`}
-              />
-              <span className="sr-only">{localSettings.soundEnabled ? '关闭音效' : '开启音效'}</span>
+              <img src={localSettings.soundEnabled ? soundOn : soundOff} alt="" width={52} height={32} />
             </button>
           </div>
         </div>
-
-        <fieldset className="space-y-3 border-0 p-0">
-          <legend className="text-sm font-extrabold text-ink">界面主题</legend>
-          <div className="grid grid-cols-3 gap-2">
-            {themeOptions.map((option) => (
-              <Pressable
-                key={option.value}
-                variant={localSettings.theme === option.value ? 'primary' : 'neutral'}
-                size="sm"
-                aria-pressed={localSettings.theme === option.value}
-                onClick={() => handleChange('theme', option.value)}
-                leading={<Icon name={option.icon} size={18} />}
-                className="px-2"
-              >
-                {option.label}
-              </Pressable>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset className="space-y-3 border-0 p-0">
-          <legend className="text-sm font-extrabold text-ink">字体大小</legend>
-          <div className="grid grid-cols-3 gap-2">
-            {(['small', 'medium', 'large'] as const).map((size) => (
-              <Pressable
-                key={size}
-                variant={localSettings.fontSize === size ? 'secondary' : 'neutral'}
-                size="sm"
-                aria-pressed={localSettings.fontSize === size}
-                onClick={() => handleChange('fontSize', size)}
-              >
-                {size === 'small' ? '小' : size === 'medium' ? '中' : '大'}
-              </Pressable>
-            ))}
-          </div>
-        </fieldset>
       </section>
 
-      <div className="h-0.5 bg-line" aria-hidden="true" />
+      <section ref={dataSection} tabIndex={-1} className="scroll-mt-24 space-y-5" aria-labelledby="data-settings">
+        <h2 id="data-settings" className="text-base font-bold leading-6 text-ink">学习数据</h2>
 
-      <DeviceSync progress={progress} stats={stats} onApply={onApplySynced} />
+        <WebStateCard headingLevel={3} title="学习记录保存在当前浏览器" body="当前版不提供云端同步。清除网站数据或更换浏览器，可能无法继续读取原有记录。备份包含学习进度、错题、设置、未完成练习和备考计划进度。">
 
-      <div className="h-0.5 bg-line" aria-hidden="true" />
-
-      <section className="space-y-4" aria-labelledby="data-settings">
-        <div>
-          <h2 id="data-settings" className="text-lg font-black text-ink">学习数据</h2>
-          <p className="mt-1 max-w-[70ch] text-sm font-semibold leading-relaxed text-muted">
-            数据优先保存在当前设备。导出文件包含学习进度、错题状态、设置和未完成练习。
-            导入会替换当前设备上的这些数据。
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Pressable
-            variant="secondary"
-            size="lg"
-            block
-            onClick={handleExport}
-            leading={<Icon name="download" size={21} />}
-          >
-            导出学习数据
-          </Pressable>
-          <Pressable
-            variant="neutral"
-            size="lg"
-            block
-            onClick={() => fileInputRef.current?.click()}
-            leading={<Icon name="upload" size={21} />}
-          >
+          <Pressable variant="featured" size="lg" block className="min-h-14" onClick={handleExport}>导出学习数据</Pressable>
+          <Pressable variant="neutral" size="lg" block className="min-h-14" onClick={() => fileInputRef.current?.click()}>
             导入学习数据
           </Pressable>
           <input
@@ -429,23 +397,35 @@ export function Settings({ settings, onUpdate, progress, stats, onApplySynced }:
             onChange={handleImport}
             className="hidden"
           />
-        </div>
+        </WebStateCard>
 
-        <div aria-live="polite" className="text-center text-sm font-bold">
-          {importMessage && (
-            <p
-              className={
-                importMessage.tone === 'error'
-                  ? 'text-danger-accent'
-                  : importMessage.tone === 'success'
-                    ? 'text-brand-soft-ink'
-                    : 'text-muted'
-              }
-            >
-              {importMessage.text}
-            </p>
-          )}
-        </div>
+        <p className="text-xs leading-[18px] text-muted">导入会替换当前设备的数据，请先导出备份。</p>
+
+        {importMessage && (
+          <WebStateCard
+            headingLevel={3}
+            role={importMessage.tone === 'error' ? 'alert' : 'status'}
+            title={importMessage.tone === 'error' ? '备份未能导入' : importMessage.tone === 'success' ? '学习数据已恢复' : '未替换学习数据'}
+            body={importMessage.text}
+            tone={importMessage.tone}
+          />
+        )}
+
+        {pendingImport && (
+          <ConfirmationDialog
+            title="要覆盖本机学习数据吗？"
+            description={<>导入会替换当前浏览器里的学习记录和设置，且无法撤销。<br />当前：{readProgressCount()} 条答题记录 · 导入：{pendingImport.progress.length} 条答题记录。</>}
+            confirmLabel="覆盖并导入"
+            cancelLabel="取消导入"
+            onConfirm={confirmImport}
+            onCancel={() => {
+              setPendingImport(null);
+              setImportMessage({ text: '已取消导入，现有数据没有任何改动。', tone: 'info' });
+            }}
+          />
+        )}
+
+        <DeviceSync progress={progress} stats={stats} onApply={onApplySynced} />
       </section>
     </div>
   );

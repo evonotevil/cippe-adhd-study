@@ -24,6 +24,9 @@ export function Pressable({
   className = '',
   children,
   disabled,
+  onClick,
+  'aria-disabled': ariaDisabled,
+  'aria-busy': ariaBusy,
   type = 'button',
   ...props
 }: PressableProps) {
@@ -31,13 +34,14 @@ export function Pressable({
     <button
       type={type}
       className={`pressable pressable--${variant} pressable--${size} ${block ? 'pressable--block' : ''} ${className}`}
-      /* 正在加载时不用 disabled：浏览器会把焦点从 disabled 元素上收走，键盘用户
-         按下回车之后焦点直接掉回 body，接下来几秒钟不知道自己在哪。改用
-         aria-disabled —— 语义一样是「现在不能用」，但按钮还在 Tab 序列里，焦点环
-         也还在。重复触发由调用方的 usePendingAction 拦住。 */
+      // Loading stays focusable, but cannot trigger the underlying action.
       disabled={disabled}
-      aria-disabled={loading || undefined}
-      aria-busy={loading || undefined}
+      aria-disabled={loading || ariaDisabled}
+      aria-busy={loading || ariaBusy}
+      onClick={onClick || loading || ariaDisabled ? (event) => {
+        if (loading || ariaDisabled === true || ariaDisabled === 'true') event.preventDefault();
+        else onClick?.(event);
+      } : undefined}
       {...props}
     >
       {loading ? (

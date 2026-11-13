@@ -6,8 +6,11 @@ import { SCENARIO_GROUPS } from '../data/scenarioGroups';
 import { formatTime } from '../utils/helpers';
 import { getCurrentCorrectStreak } from '../utils/streak';
 import { QuizCard } from './QuizCard';
+import quizClose from '../assets/v2/quiz-close.svg';
+import './practice-v2.css';
 import { Icon } from './ui/Icons';
 import { Pressable } from './ui/Pressable';
+import { ConfirmationDialog } from './ui/ConfirmationDialog';
 import { ProgressBar } from './ui/ProgressBar';
 import { StreakChip } from './ui/StreakFeedback';
 
@@ -24,7 +27,7 @@ interface PracticeViewProps {
   updateSession: (updater: (session: PracticeSession) => PracticeSession) => void;
   onRecordAnswer: (questionId: number, isCorrect: boolean, timeSpent: number) => void;
   onSubmitExam: (session: PracticeSession, answers: AnswerRecord[]) => void;
-  onPause: () => void;
+  onPause: (session: PracticeSession) => void;
   onFinish: (session: PracticeSession) => void;
   onDiscardEmpty: () => void;
   onBoundary: (session: PracticeSession) => void;
@@ -44,6 +47,7 @@ export function PracticeView({
 }: PracticeViewProps) {
   const reduceMotion = useReducedMotion();
   const [showExamReview, setShowExamReview] = useState(false);
+  const [confirmation, setConfirmation] = useState<'leave' | 'finish' | 'exam' | null>(null);
   const [questionDirection, setQuestionDirection] = useState<-1 | 1>(1);
   const [elapsedSeconds, setElapsedSeconds] = useState(session.elapsedSeconds);
   const elapsedSecondsRef = useRef(session.elapsedSeconds);
@@ -241,31 +245,14 @@ export function PracticeView({
       return;
     }
 
-    if (window.confirm('结束本次练习并查看结果吗？')) {
-      onFinish({ ...session, elapsedSeconds });
-    }
+    setConfirmation('finish');
   };
 
-  const handlePause = () => {
-    updateSession((current) => ({
-      ...current,
-      elapsedSeconds: elapsedSecondsRef.current,
-    }));
-    onPause();
-  };
-
-  const handleExamSubmit = () => {
+  const submitCurrentExam = () => {
     const answeredItems = session.items.filter((item) => item.selectedAnswer);
-    const unansweredCount = session.items.length - answeredItems.length;
-    if (
-      unansweredCount > 0 &&
-      !window.confirm(`还有 ${unansweredCount} 题未答。确定现在交卷吗？`)
-    ) {
-      return;
-    }
-
+    const finalElapsedSeconds = elapsedSecondsRef.current;
     const averageTime = answeredItems.length > 0
-      ? Math.max(1, Math.round(elapsedSeconds / answeredItems.length))
+      ? Math.max(1, Math.round(finalElapsedSeconds / answeredItems.length))
       : 0;
     const timestamp = Date.now();
     const attempts: PracticeAttempt[] = answeredItems.map((item, index) => {
@@ -279,7 +266,7 @@ export function PracticeView({
         timestamp: new Date(timestamp + index).toISOString(),
       };
     });
-    const finalSession = { ...session, attempts, elapsedSeconds };
+    const finalSession = { ...session, attempts, elapsedSeconds: finalElapsedSeconds };
     onSubmitExam(
       finalSession,
       attempts.map(({ questionId, isCorrect, timeSpent }) => ({
@@ -290,6 +277,27 @@ export function PracticeView({
     );
   };
 
+  const unansweredCount = session.items.filter((item) => !item.selectedAnswer).length;
+  const dialog = confirmation && (
+    <ConfirmationDialog
+      title={confirmation === 'leave' ? '要离开本次练习吗？' : confirmation === 'finish' ? '要结束本次练习吗？' : '要提前交卷吗？'}
+      description={confirmation === 'leave'
+        ? '保存当前进度后离开，下次可从已保存的位置继续。'
+        : confirmation === 'finish'
+          ? '已答的题会计入结果。结束后，这组练习将不能继续。'
+          : `还有 ${unansweredCount} 题未答。交卷后，未答题将计入本次成绩，但不会加入错题本。`}
+      confirmLabel={confirmation === 'leave' ? '保存并离开' : confirmation === 'finish' ? '结束并查看结果' : '确认提前交卷'}
+      cancelLabel="继续答题"
+      onConfirm={() => {
+        setConfirmation(null);
+        if (confirmation === 'leave') onPause({ ...session, elapsedSeconds: elapsedSecondsRef.current });
+        else if (confirmation === 'finish') onFinish({ ...session, elapsedSeconds: elapsedSecondsRef.current });
+        else submitCurrentExam();
+      }}
+      onCancel={() => setConfirmation(null)}
+    />
+  );
+
   if (!currentItem || !currentQuestion) {
     return (
       <div className="mx-auto max-w-lg rounded-[1.25rem] border-2 border-warning-shadow bg-warning-soft p-6 text-center text-warning-ink">
@@ -298,7 +306,7 @@ export function PracticeView({
         </span>
         <p className="mt-4 font-black">这组练习没有可用题目</p>
         <Pressable variant="neutral" block onClick={onDiscardEmpty} className="mt-5">
-          返回首页
+          {session.studyDay ? '返回学习卡' : '返回首页'}
         </Pressable>
       </div>
     );
@@ -315,7 +323,7 @@ export function PracticeView({
 
   if (showExamReview) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className="mx-auto max-w-2xl space-y-6 pt-5">
         <header>
           <Pressable
             variant="ghost"
@@ -366,63 +374,59 @@ export function PracticeView({
           </div>
         </section>
 
-        <Pressable variant="secondary" size="lg" block onClick={handleExamSubmit}>
+        <Pressable variant="featured" size="lg" block onClick={() => unansweredCount ? setConfirmation('exam') : submitCurrentExam()}>
           确认交卷
         </Pressable>
+        {dialog}
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
-      <header className="app-sticky-top sticky z-30 -mx-4 -mt-3 border-b-2 border-line bg-app px-4 pb-3 pt-3">
-        <div className="mx-auto max-w-2xl">
-          <div className="flex items-center gap-3">
-            <Pressable
-              variant="ghost"
-              size="sm"
-              onClick={handlePause}
-              aria-label="保存并返回首页"
-              className="shrink-0 px-2.5"
-            >
-              <Icon name="close" size={23} />
-            </Pressable>
-            <ProgressBar
-              value={progressValue}
-              max={session.items.length}
-              label={progressText}
-              tone={session.mode === 'exam' ? 'info' : 'brand'}
-              className="flex-1"
-            />
-            <Pressable
-              variant="danger-soft"
-              size="sm"
-              onClick={handleEnd}
-              className="shrink-0 px-3"
-            >
-              {session.mode === 'exam' ? '交卷' : '结束'}
-            </Pressable>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1 text-xs font-bold text-muted">
-            <span className="min-w-0 flex-1 truncate">{getSessionTitle(session)}</span>
-            <span className="flex shrink-0 items-center gap-2 tabular-nums">
-              <AnimatePresence initial={false}>
-                {correctStreak >= 2 && <StreakChip key="streak-chip" streak={correctStreak} />}
-              </AnimatePresence>
-              <span>{progressText}</span>
-              <span aria-hidden="true">·</span>
-              <span className="flex items-center gap-1">
-                <Icon name="clock" size={14} />
-                {formatTime(elapsedSeconds)}
-              </span>
-            </span>
-          </div>
+    <div className="practice-screen mx-auto max-w-2xl">
+      {dialog}
+      <header className="app-sticky-top quiz-header-edge quiz-safe-top sticky z-30 bg-surface pb-2">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setConfirmation('leave')}
+            aria-label={session.studyDay ? '保存并返回学习卡' : '保存并返回首页'}
+            className="grid size-11 shrink-0 place-items-center rounded-xl hover:bg-surface-soft"
+          >
+            <img src={quizClose} alt="" width={24} height={24} />
+          </button>
+          <ProgressBar
+            value={progressValue}
+            max={session.items.length}
+            label={progressText}
+            className="quiz-progress flex-1"
+          />
+          <button
+            type="button"
+            onClick={handleEnd}
+            className={`size-11 shrink-0 rounded-xl text-xs font-medium hover:bg-surface-soft ${session.mode === 'exam' ? 'text-info-accent' : 'text-muted'}`}
+          >
+            {session.mode === 'exam' ? '交卷' : '结束'}
+          </button>
         </div>
       </header>
+
+      <div className="flex min-h-[54px] flex-wrap items-baseline justify-between gap-x-3 gap-y-1 pb-4 pt-5 text-xs font-medium leading-[18px] text-muted">
+        <span className="min-w-0 flex-1">{getSessionTitle(session)}</span>
+        <span className="flex shrink-0 items-center gap-2 tabular-nums">
+          <span>{isFiniteSession || session.mode === 'exam' ? `${session.currentIndex + 1} / ${session.items.length}` : progressText}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatTime(elapsedSeconds)}</span>
+        </span>
+        <AnimatePresence initial={false}>
+          {correctStreak >= 2 && <StreakChip key="streak-chip" streak={correctStreak} />}
+        </AnimatePresence>
+      </div>
 
       <AnimatePresence mode="wait" initial={false} custom={questionDirection}>
         <m.div
           key={currentItem.key}
+          className="flex flex-1 flex-col"
           custom={questionDirection}
           variants={{
             enter: (direction: number) => ({ opacity: 0, x: reduceMotion ? 0 : direction * 22 }),
@@ -457,40 +461,42 @@ export function PracticeView({
       </AnimatePresence>
 
       {session.mode === 'exam' && (
-        <div className="mt-6 mx-auto max-w-2xl rounded-[1.25rem] border-2 border-line bg-surface p-3 shadow-[0_4px_0_var(--ui-line-strong)]">
-          <div className="mb-3 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => updateCurrentItem({ flagged: !currentItem.flagged })}
-              aria-pressed={Boolean(currentItem.flagged)}
-              className={`flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-extrabold transition-colors ${
-                currentItem.flagged ? 'bg-warning-soft text-warning-ink' : 'text-muted hover:bg-surface-soft'
-              }`}
-            >
-              <Icon name="flag" size={18} />
-              {currentItem.flagged ? '已标记' : '稍后检查'}
-            </button>
-            <span className="text-xs font-bold text-muted">已答 {answeredCount}/{session.items.length}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Pressable
-              variant="neutral"
-              onClick={() => moveToIndex(Math.max(0, session.currentIndex - 1))}
-              disabled={session.currentIndex === 0}
-              leading={<Icon name="arrow-left" size={19} />}
-            >
-              上一题
-            </Pressable>
-            <Pressable
-              variant="secondary"
-              onClick={() => {
-                if (session.currentIndex === session.items.length - 1) setShowExamReview(true);
-                else moveToIndex(session.currentIndex + 1);
-              }}
-              trailing={<Icon name="arrow-right" size={19} />}
-            >
-              {session.currentIndex === session.items.length - 1 ? '检查交卷' : '下一题'}
-            </Pressable>
+        <div className="quiz-footer-edge quiz-safe-bottom sticky bottom-0 z-20 mt-auto space-y-2 border-t-2 border-line bg-surface pt-4">
+          <Pressable
+            variant="featured"
+            size="lg"
+            block
+            onClick={() => {
+              if (session.currentIndex === session.items.length - 1) setShowExamReview(true);
+              else moveToIndex(session.currentIndex + 1);
+            }}
+          >
+            {session.currentIndex === session.items.length - 1 ? '检查交卷' : '下一题'}
+          </Pressable>
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-2 text-xs font-medium text-muted">
+            <p>交卷后统一查看结果与解析</p>
+            <div className="flex items-center gap-1.5">
+              {session.currentIndex > 0 && (
+                <button
+                  type="button"
+                  className="grid size-11 place-items-center rounded-lg hover:bg-surface-soft"
+                  onClick={() => moveToIndex(session.currentIndex - 1)}
+                  aria-label="上一题"
+                >
+                  <Icon name="arrow-left" size={17} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => updateCurrentItem({ flagged: !currentItem.flagged })}
+                aria-pressed={Boolean(currentItem.flagged)}
+                aria-label={currentItem.flagged ? '取消标记' : '稍后检查'}
+                title={currentItem.flagged ? '取消标记' : '稍后检查'}
+                className={`grid size-11 place-items-center rounded-lg transition-colors ${currentItem.flagged ? 'bg-warning-soft text-warning-ink' : 'hover:bg-surface-soft'}`}
+              >
+                <Icon name="flag" size={18} />
+              </button>
+            </div>
           </div>
         </div>
       )}
