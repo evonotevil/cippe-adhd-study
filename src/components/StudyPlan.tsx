@@ -1,3 +1,5 @@
+import { GuidedLesson } from './GuidedLesson';
+import { GUIDED_LESSONS } from '../data/guidedLessons';
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import book from '../assets/study-plan/book.svg';
@@ -37,7 +39,6 @@ const chapterTones = [
   'border-warning-line bg-warning-soft text-warning-ink',
 ];
 const lanes = [175, 255, 175, 95];
-const timelineHeadings = ['放到同一条时间线上', '看清题目问的是哪个时期'];
 
 function DayPath({
   days, completed, currentDay, onSelect,
@@ -200,21 +201,7 @@ export function StudyPlan({
           <h1 ref={headingRef} tabIndex={-1} className="text-[26px] leading-9 font-bold text-ink focus:outline-none">{selectedDay.title}</h1>
           <p className="text-sm leading-[22px] text-muted">今天学会：{selectedDay.goal}</p>
 
-          <section aria-label="核心知识" className="space-y-5 rounded-[20px] border-2 border-line bg-surface p-5">
-            {selectedDay.notes.map((note, index) => (
-              <div key={note} className="space-y-5">
-                <h2 className="text-base leading-6 font-bold text-info-accent">
-                  {String(index + 1).padStart(2, '0')} / {selectedDay.day === 2 ? timelineHeadings[index] : '核心知识'}
-                </h2>
-                <p className="text-sm leading-[22px] text-ink">{note}</p>
-              </div>
-            ))}
-          </section>
-
-          <section className="space-y-2 rounded-[20px] border-2 border-warning-line bg-warning-soft p-5 text-warning-ink">
-            <h2 className="text-base leading-6 font-bold">先不看资料，回忆一下</h2>
-            <p className="text-sm leading-[22px]">{selectedDay.recall}</p>
-          </section>
+          <GuidedLesson key={selectedDay.day} lesson={selectedDay} />
 
           <div>
             <Pressable
@@ -228,6 +215,9 @@ export function StudyPlan({
               {referencesOpen ? '收起本课参考资料' : '查看本课参考资料'}
             </Pressable>
             <div id="study-lesson-sources" hidden={!referencesOpen} className="mt-3 rounded-xl border-2 border-line bg-surface p-4">
+              {GUIDED_LESSONS[selectedDay.day].reference && (
+                <p className="mb-3 text-sm font-bold text-ink">{GUIDED_LESSONS[selectedDay.day].reference}</p>
+              )}
               <ul className="space-y-2 text-sm leading-[22px] text-muted">
                 {selectedDay.sources.map((id) => <li key={id} className="break-words">{STUDY_SOURCES[id]}</li>)}
               </ul>
